@@ -29,7 +29,7 @@ Visit the live application: [https://converter.piogino.ch](https://converter.pio
 ## 📁 Project Structure
 
 ```
-webapp-file-converter/
+file-converter/
 ├── assets/
 │   ├── scripts/
 │   │   ├── core/                 # Shared utilities
@@ -91,8 +91,8 @@ Simply visit [https://converter.piogino.ch](https://converter.piogino.ch) and st
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/piosteiner/webapp-file-converter.git
-   cd webapp-file-converter
+   git clone https://github.com/piosteiner/file-converter.git
+   cd file-converter
    ```
 
 2. **Serve locally**
