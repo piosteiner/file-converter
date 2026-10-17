@@ -1,11 +1,17 @@
 // Offline support: network first, cached copy when offline.
 // Bump VERSION when the precache list changes.
-const VERSION = 'v3';
+const VERSION = 'v4';
 const CACHE = `converter-${VERSION}`;
 const PRECACHE = [
   '/',
   '/index.html',
   '/assets/site.css',
+  '/assets/fonts/ibm-plex-sans-400.woff2',
+  '/assets/fonts/ibm-plex-sans-500.woff2',
+  '/assets/fonts/ibm-plex-sans-600.woff2',
+  '/assets/fonts/ibm-plex-mono-400.woff2',
+  '/assets/fonts/ibm-plex-mono-500.woff2',
+  '/assets/fonts/ibm-plex-mono-600.woff2',
   '/assets/js/core.js',
   '/assets/js/jpeg.js',
   '/assets/js/resize.js',
@@ -14,6 +20,8 @@ const PRECACHE = [
   '/assets/js/grid.js',
   '/assets/icons/icon.svg',
   '/assets/icons/icon-192.png',
+  '/assets/vendor/jspdf.umd.min.js',
+  '/privacy.html',
   '/pages/converters/png-to-jpeg.html',
   '/pages/converters/png-stickers.html',
   '/pages/converters/png-icons.html',
