@@ -1,320 +1,127 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0" />
-  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-  <meta http-equiv="Pragma" content="no-cache">
-  <meta http-equiv="Expires" content="0">
-  <title>GIF to WebM Sticker Converter + Editor</title>
-  <meta
-    name="description"
-    content="Professional GIF to WebM sticker converter with built-in editor for trimming and optimization." />
-  <meta
-    name="keywords"
-    content="GIF to WebM, sticker converter, GIF editor, FFmpeg, VP9, WebM converter, animated stickers, Telegram stickers" />
-  <link
-    rel="canonical"
-    href="https://converter.piogino.ch/html/gif-converter.html" />
-  <link
-    rel="icon"
-    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎬</text></svg>">
-  <link rel="stylesheet" href="../../assets/styles/styles.css">
-  <script>
-      // Prevent flash of light theme - must run immediately before page renders
-      (function() {
-          const theme = localStorage.getItem('preferred-theme') || 'system';
-          if (theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-              document.documentElement.setAttribute('data-theme', 'dark');
-          }
-      })();
-  </script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GIF to WebM · converter.piogino</title>
+  <meta name="description" content="Trim animated GIFs and convert them to VP9 WebM under a size limit for Telegram video stickers and emoji.">
+  <link rel="canonical" href="https://converter.piogino.ch/pages/converters/gif-to-webm.html">
+  <link rel="icon" href="/assets/icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/assets/icons/icon-192.png">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#f3f0e8" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#151412" media="(prefers-color-scheme: dark)">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="/assets/site.css">
+  <script>try{var t=localStorage.getItem('preferred-theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
 </head>
+<body>
+  <header class="site-head">
+    <div class="wrap">
+      <a class="mark" href="/"><svg viewBox="0 0 18 18" aria-hidden="true"><rect x="1" y="1" width="7" height="7" fill="currentColor"/><rect x="10.75" y="1.75" width="5.5" height="5.5" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="1.75" y="10.75" width="5.5" height="5.5" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="10" y="10" width="7" height="7" fill="var(--accent)"/></svg>converter<span>.piogino</span></a>
+      <nav class="tools-nav" aria-label="Tools">
+        <a href="/pages/converters/png-to-jpeg.html">png→jpg</a>
+        <a href="/pages/converters/png-stickers.html">sticker 512</a>
+        <a href="/pages/converters/png-icons.html">emoji 100</a>
+        <a href="/pages/converters/gif-to-webm.html" aria-current="page">gif→webm</a>
+        <a href="/pages/converters/image-splitter.html">map splitter</a>
+        <a href="/pages/converters/grid-generator.html">25 mm grid</a>
+      </nav>
+      <button class="theme-btn" type="button">system</button>
+    </div>
+  </header>
 
-<body class="converter-page gif-converter">
-  <div class="container">
-    <h1>🎬 GIF → WebM Sticker Converter</h1>
-    <p class="subtitle">
-      Professional GIF to WebM conversion using server-side FFmpeg<br />
-      VP9 codec • Original animation preserved • Max 512px • Up to 30 FPS
-      <br><br>
-      This tool was originally intended for the creation of custom animated stickers in the Telegram messaging app. Henc the 3-second limit and max 512px size.
-      <br><br>
-      <strong>📖 Resources:</strong> <a href="https://core.telegram.org/stickers" target="_blank" rel="noopener">Telegram Stickers Guide</a>
-    </p>
+  <main class="wrap">
+    <div class="intro">
+      <h1>GIF <span class="arrow">→</span> WebM</h1>
+      <p>Encodes animated GIFs as VP9 WebM under a size limit, the format Telegram uses for video stickers and emoji. Drop one GIF to trim it first, or several to convert them as they are.</p>
+      <div class="spec"><span>In <b>GIF · up to 100 MB</b></span><span>Out <b>WebM · VP9 · ≤ 3 s · ≤ 30 fps</b></span><span>Runs <b>on api.piogino.ch</b></span></div>
+    </div>
+    <p class="msg bad" id="server" hidden></p>
 
-    <!-- Navigation will be dynamically loaded -->
-    <div id="navigation-placeholder"></div>
-
-    <!-- (Optional) Server Status gets injected by gif-converter.js -->
-    <div id="serverStatusMount"></div>
-
-    <!-- Converter controls -->
-    <div class="controls">
-      <div class="control-group">
-        <label class="control-label" for="maxSize">Max File Size</label>
-        <input
-          type="range"
-          id="maxSize"
-          class="control-input"
-          min="64"
-          max="512"
-          value="256" />
-        <div class="control-value" id="maxSizeValue">256 KB</div>
-      </div>
-
-      <div class="control-group">
-        <label class="control-label" for="crf">Starting Quality (CRF)</label>
-        <input
-          type="range"
-          id="crf"
-          class="control-input"
-          min="20"
-          max="63"
-          value="35" />
-        <div class="control-value" id="crfValue">35 (High)</div>
+    <div class="panel">
+      <fieldset class="field">
+        <legend>Format</legend>
+        <div class="seg">
+          <label><input type="radio" name="mode" value="sticker" checked><span>Sticker · 512 px</span></label>
+          <label><input type="radio" name="mode" value="emoji"><span>Emoji · 100 px</span></label>
+        </div>
+      </fieldset>
+      <div class="field">
+        <label for="maxSize">Size limit</label>
+        <div class="row"><input type="range" id="maxSize" min="64" max="512" step="32" value="256"><output id="maxSizeOut" for="maxSize">256 KB</output></div>
+        <p class="hint">Telegram accepts up to 256 KB.</p>
       </div>
     </div>
 
-    <!-- Converter upload -->
-    <div class="drop-zone" id="dropZone">
-      <div class="drop-icon">🎬</div>
-      <div class="drop-text">Drop your animated GIF here</div>
-      <div class="drop-subtext">
-        or click to browse • Supports multiple files • Server-side FFmpeg
-      </div>
+    <div class="drop" id="drop" tabindex="0" role="button" aria-label="Drop GIFs here">
+      <div><strong>Drop GIFs here</strong><small>or click to choose · one GIF opens the trimmer</small></div>
+      <input type="file" accept="image/gif,.gif" multiple>
     </div>
-    <input
-      type="file"
-      id="fileInput"
-      accept=".gif,image/gif"
-      multiple
-      class="hidden" />
+    <p class="msg" id="msg"></p>
 
-    <div class="status" id="status"></div>
-
-    <!-- ======================================== -->
-    <!--           GIF EDITOR SECTION             -->
-    <!-- ======================================== -->
-
-    <div
-      class="editor-separator timeline-section">
-      <div class="timeline-border">
-        <span class="timeline-label">
-          ✂️ GIF EDITOR
+    <section class="editor" id="editor" hidden aria-label="Trim">
+      <div class="editor-head">
+        <span class="editor-name" id="edName"></span>
+        <button class="btn ghost small" type="button" id="edClose">Close</button>
+      </div>
+      <div class="stage editor-stage">
+        <video id="video" muted playsinline loop preload="auto"></video>
+        <img id="still" alt="" hidden>
+      </div>
+      <div class="timeline" id="timeline">
+        <div class="tl-track" id="track">
+          <div class="tl-sel" id="sel">
+            <span class="tl-handle" id="hStart" role="slider" tabindex="0" aria-label="Start"></span>
+            <span class="tl-handle" id="hEnd" role="slider" tabindex="0" aria-label="End"></span>
+          </div>
+          <div class="tl-head" id="head"></div>
+        </div>
+        <div class="tl-scale"><span>0 s</span><span id="tlTotal"></span></div>
+      </div>
+      <div class="editor-controls">
+        <button class="btn ghost small" type="button" id="play">Pause</button>
+        <label class="field compact"><span class="label">Start</span><input type="number" id="start" min="0" step="0.05" value="0"></label>
+        <label class="field compact"><span class="label">End</span><input type="number" id="end" min="0" step="0.05" value="0"></label>
+        <div class="field compact"><span class="label">Length</span><output id="len" class="value">0.00 s</output></div>
+        <label class="check"><input type="checkbox" id="pingpong"> Ping-pong</label>
+        <span class="editor-presets">
+          <button class="btn ghost small" type="button" data-preset="3">First 3 s</button>
+          <button class="btn ghost small" type="button" data-preset="1.5">First 1.5 s</button>
+          <button class="btn ghost small" type="button" data-preset="all">Whole clip</button>
         </span>
       </div>
-    </div>
-
-    <div
-      class="editor-intro editor-intro-box">
-      <h3 class="editor-intro-title">
-        📝 Edit your GIF before converting to WebM
-      </h3>
-      <p class="timeline-text">
-        <strong>Advised for GIFs longer than 3 seconds.</strong> Telegram
-        stickers have a 3-second limit, so use the editor below to trim your GIF
-        to the perfect moment before converting to WebM.
-      </p>
-    </div>
-
-    <!-- Editor Upload Zone (for the integrated editor) - FIXED: Removed inline styles -->
-    <div class="drop-zone" id="editorDropZone">
-      <div class="drop-icon">✂️</div>
-      <div class="drop-text">Drop a GIF here to edit</div>
-      <div class="drop-subtext">or click to browse</div>
-    </div>
-    <input
-      type="file"
-      id="editorFileInput"
-      accept=".gif,image/gif"
-      class="hidden" />
-
-    <!-- Editor Container (initially hidden) -->
-    <div
-      class="gif-editor-container hidden export-section-spacing"
-      id="editorContainer">
-      <!-- Preview -->
-      <div class="preview-section">
-        <div class="preview-controls">
-          <button id="playPauseBtn" class="control-btn" title="Play / Pause">
-            ▶️
-          </button>
-          <button
-            id="restartBtn"
-            class="control-btn"
-            title="Jump to selection start">
-            ⏮️
-          </button>
-          <button id="loopBtn" class="control-btn" title="Toggle loop">
-            Loop: OFF
-          </button>
-          <span class="preview-info" id="previewInfo">—</span>
-        </div>
-
-        <div class="preview-container">
-          <!-- Blob URL from server preview goes here -->
-          <video
-            id="previewVideo"
-            preload="metadata"
-            controls
-            playsinline></video>
-        </div>
+      <p class="hint" id="lenHint"></p>
+      <div class="actions">
+        <button class="btn" type="button" id="toWebm">Convert to WebM</button>
+        <button class="btn ghost" type="button" id="toGif">Save trimmed GIF</button>
       </div>
-
-      <!-- Timeline -->
-      <div class="timeline-section">
-        <div class="timeline-controls">
-          <div class="preset-buttons">
-            <button class="preset-btn" data-duration="1.5">1.5s</button>
-            <button class="preset-btn" data-duration="3">3s</button>
-            <button class="preset-btn" data-duration="full">Full</button>
-          </div>
-
-          <div class="duration-display">
-            <span class="control-label"
-              >Total Duration: <span id="videoDuration">0.0s</span></span
-            >
-          </div>
-
-          <div class="loop-options">
-            <label class="checkbox-label" title="Ping-Pong loop when exporting">
-              <input type="checkbox" id="pingPongMode" />
-              <span class="checkmark"></span>
-              Ping-Pong Loop
-            </label>
-          </div>
-        </div>
-
-        <div class="timeline-container" id="timelineContainer">
-          <!-- Duration pill above the bar -->
-          <div id="durationPill" class="duration-pill">🎬 Ready</div>
-
-          <!-- Track container - JavaScript will populate this -->
-          <div class="timeline-track" id="timelineTrack">
-            <!-- Timeline markers, selection area, handles, and playhead will be created by JavaScript -->
-          </div>
-        </div>
-
-        <div class="timeline-info">
-          <div class="time-display">
-            <!-- JavaScript will replace these spans with inputs -->
-            <span>Start: <span id="startTime">0.0s</span></span>
-            <span>End: <span id="endTime">0.0s</span></span>
-            <span>Duration: <span id="trimDuration">0.0s</span></span>
-          </div>
-        </div>
-      </div>
-
-    <!-- Editor status + filename mount points -->
-    <div class="status" id="editorStatus"></div>
-    <span id="loadedFilename" class="hidden"></span>
-
-    <!-- Export Section -->
-    <div class="export-section">
-      <div class="export-controls">
-        <div class="export-options">
-          <label class="control-label">Export Quality</label>
-          <div class="quality-selector">
-            <button class="quality-btn active" data-quality="high">High</button>
-            <button class="quality-btn" data-quality="medium">Medium</button>
-            <button class="quality-btn" data-quality="low">Low</button>
-          </div>
-        </div>
-
-        <button id="exportTrimmedBtn" class="export-btn">
-          <span class="export-icon">💾</span>
-          Export Trimmed GIF
-        </button>
-      </div>
-
-      <div class="export-progress hidden-section" id="exportProgress">
-        <div class="progress-bar">
-          <div class="progress-fill" id="progressFill"></div>
-        </div>
-        <div class="progress-text" id="progressText">Preparing…</div>
-      </div>
-    </div>
-
-    <!-- Workflow/notes -->
-    <div class="features features-section">
-      <h3>🚀 Complete GIF to WebM Workflow:</h3>
-      <ul class="features-list">
-        <li>✂️ <strong>Built-in GIF Editor</strong> — trim long GIFs to perfect 3-second clips</li>
-        <li>🎥 <strong>Full video controls</strong> — pause, seek, and preview your selections</li>
-        <li>✅ <strong>Server-side FFmpeg</strong> — VP9 encoding with transparency</li>
-        <li>📱 <strong>Telegram optimized</strong> — perfect for animated stickers (3s limit)</li>
-        <li>⚡ <strong>Batch processing</strong> — convert multiple files simultaneously</li>
-        <li>🔒 <strong>Privacy first</strong> — files deleted automatically after download</li>
-        <li>🎯 <strong>Size optimization</strong> — automatic quality to meet size limits</li>
-      </ul>
-    </div>
-
-    <div
-      class="tech-note tech-note-box">
-      <strong>Complete workflow:</strong>
-      1) Upload your GIF to the editor if it's longer than 3 seconds
-      2) Trim it to the perfect moment using full video controls
-      3) Export the trimmed GIF
-      4) Use the converter above to create your WebM sticker for Telegram
-    </div>
-
-    <!-- PWA Features Section -->
-    <section class="pwa-info-section">
-        <div class="pwa-info-card">
-            <div class="pwa-info-header">
-                <h3>📱 Install as Mobile App</h3>
-                <button class="pwa-info-btn" onclick="pwaInstallGuide.showGuide()">
-                    Learn How
-                </button>
-            </div>
-            <p class="pwa-info-description">
-                Get the best experience by installing our converter as an app on your phone or computer. 
-                It works offline, loads faster, and feels just like a native app!
-            </p>
-            
-            <div class="pwa-benefits-grid">
-                <div class="pwa-benefit">
-                    <span class="pwa-benefit-icon">⚡</span>
-                    <span>Lightning Fast</span>
-                </div>
-                <div class="pwa-benefit">
-                    <span class="pwa-benefit-icon">📱</span>
-                    <span>Works Offline</span>
-                </div>
-                <div class="pwa-benefit">
-                    <span class="pwa-benefit-icon">🚀</span>
-                    <span>App-like Feel</span>
-                </div>
-                <div class="pwa-benefit">
-                    <span class="pwa-benefit-icon">💾</span>
-                    <span>Less Storage</span>
-                </div>
-            </div>
-        </div>
     </section>
-  </div>
 
-  <!-- Scripts -->
-  <script src="../../assets/scripts/core/navigation.js?v=202509292053"></script>
-  <script src="../../assets/scripts/core/logger.js?v=202509292036"></script>
-  <script src="../../assets/scripts/core/error-handler.js?v=202509292036"></script>
-  <script src="../../assets/scripts/core/performance-monitor.js?v=202509292036"></script>
-  <script src="../../assets/scripts/core/file-validator.js?v=202509292036"></script>
-  <script src="../../assets/scripts/core/theme-switcher.js?v=202509292036"></script>
-  <script src="../../assets/scripts/core/pwa-manager.js?v=202509292036"></script>
-  <script src="../../assets/scripts/core/pwa-install-guide.js?v=202509292036"></script>
-  <script src="../../assets/scripts/gif-editor/gif_editor_main.js?v=202509292036"></script>
-  <script src="../../assets/scripts/gif-editor/gif-converter.js?v=202509292036"></script>
-  <script src="../../assets/scripts/gif-editor/controllers/input_handler.js?v=202509292036"></script>
-  <script src="../../assets/scripts/gif-editor/controllers/timeline_controller.js?v=202509292036"></script>
-  <script src="../../assets/scripts/gif-editor/controllers/video_controller.js?v=202509292036"></script>
-  <script src="../../assets/scripts/gif-editor/ui/status_manager.js?v=202509292036"></script>
-  <script src="../../assets/scripts/gif-editor/ui/timeline_ui.js?v=202509292036"></script>
-  <script src="../../assets/scripts/gif-editor/ui/ui_manager.js?v=202509292036"></script>
-  <script src="../../assets/scripts/gif-editor/utils/file_handler.js?v=202509292036"></script>
-  <script src="../../assets/scripts/gif-editor/utils/style_manager.js?v=202509292036"></script>
-  <script src="../../assets/scripts/gif-editor/utils/time_formatter.js?v=202509292036"></script></body>
+    <div class="results" id="results"></div>
+
+    <div class="notes">
+      <div>
+        <h2>Length</h2>
+        <p>Stickers longer than 3 s are cut at 3 s. Ping-pong plays the selection forward and back, so it doubles the length — keep the selection at 1.5 s or less.</p>
+      </div>
+      <div>
+        <h2>Size</h2>
+        <p>The server lowers the quality step by step until the file fits the limit. Long or busy clips may not fit; trim them shorter.</p>
+      </div>
+    </div>
+  </main>
+
+  <footer class="site-foot">
+    <div class="wrap">
+      <a href="/">converter.piogino.ch</a>
+      <span>Files are sent to api.piogino.ch and deleted after conversion</span>
+    </div>
+  </footer>
+
+  <script src="/assets/js/core.js"></script>
+  <script src="/assets/js/gif.js"></script>
+</body>
 </html>

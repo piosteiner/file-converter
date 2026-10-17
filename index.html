@@ -1,193 +1,96 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>File Converter - PNG to JPEG, GIF to WebM & GIF Editor</title>
-    <meta name="description" content="Professional file conversion and editing tools. PNG to JPEG converter, GIF to WebM converter, and advanced GIF editor with timeline controls.">
-    <meta name="keywords" content="file converter, PNG to JPEG, GIF to WebM, GIF editor, image converter, video converter, timeline editor">
-    <link rel="canonical" href="https://converter.piogino.ch">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔧</text></svg>">
-    <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#667eea">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="File Converter">
-    <link rel="stylesheet" href="assets/styles/styles.css">
-    <script>
-        // Prevent flash of light theme - must run immediately before page renders
-        (function() {
-            const theme = localStorage.getItem('preferred-theme') || 'system';
-            if (theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-                document.documentElement.setAttribute('data-theme', 'dark');
-            }
-        })();
-    </script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>converter.piogino</title>
+  <meta name="description" content="Small file tools: PNG to JPEG, Telegram stickers and emoji, GIF to WebM, battle map splitting and 25 mm grids.">
+  <link rel="canonical" href="https://converter.piogino.ch/">
+  <link rel="icon" href="/assets/icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/assets/icons/icon-192.png">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#f3f0e8" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#151412" media="(prefers-color-scheme: dark)">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="/assets/site.css">
+  <script>try{var t=localStorage.getItem('preferred-theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
 </head>
-<body class="landing-page">
-    <div class="container">
-        <header>
-            <h1>🔧 File Converter & Editor</h1>
-            <p class="subtitle">
-                Professional file conversion and editing tools for images and animations.<br>
-                Fast, secure, and completely browser-based processing.
-            </p>
-        </header>
+<body>
+  <header class="site-head">
+    <div class="wrap">
+      <a class="mark" href="/"><svg viewBox="0 0 18 18" aria-hidden="true"><rect x="1" y="1" width="7" height="7" fill="currentColor"/><rect x="10.75" y="1.75" width="5.5" height="5.5" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="1.75" y="10.75" width="5.5" height="5.5" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="10" y="10" width="7" height="7" fill="var(--accent)"/></svg>converter<span>.piogino</span></a>
+      <nav class="tools-nav" aria-label="Tools">
+        <a href="/pages/converters/png-to-jpeg.html">png→jpg</a>
+        <a href="/pages/converters/png-stickers.html">sticker 512</a>
+        <a href="/pages/converters/png-icons.html">emoji 100</a>
+        <a href="/pages/converters/gif-to-webm.html">gif→webm</a>
+        <a href="/pages/converters/image-splitter.html">map splitter</a>
+        <a href="/pages/converters/grid-generator.html">25 mm grid</a>
+      </nav>
+      <button class="theme-btn" type="button">system</button>
+    </div>
+  </header>
 
-        <main>
-            <section class="converters">
-                <div class="converter-grid">
-                    <a href="pages/converters/png-to-jpeg.html" class="converter-card">
-                        <div class="converter-icon">📸</div>
-                        <div class="converter-title">PNG → JPEG</div>
-                        <div class="converter-description">
-                            Convert PNG images to JPEG format with adjustable quality.
-                            Supports bulk conversion of multiple files. Perfect for reducing file sizes for web use, email attachments, and general image optimization.
-                        </div>
-                    </a>
-
-                    <a href="pages/converters/gif-to-webm.html" class="converter-card">
-                        <div class="converter-icon">🎬</div>
-                        <div class="converter-title">GIF → WebM + Editor</div>
-                        <div class="converter-description">
-                            Professional GIF to WebM conversion with built-in timeline editor.
-                            Perfect for creating animated stickers and emojis with precise trimming, loop controls, and size optimization.
-                            Ideal for Telegram animated stickers, Discord animated emojis, and web content optimization.
-                        </div>
-                    </a>
-                    
-                    <a href="pages/converters/png-icons.html" class="converter-card">
-                        <div class="converter-icon">🖼️</div>
-                        <div class="converter-title">Image → 100x100 PNG</div>
-                        <div class="converter-description">
-                            Convert any image to a perfect 100x100 pixel PNG icon with transparent background.
-                            Ideal for creating custom emojis and small icons for Telegram, Discord, and other platforms. Perfect for profile pictures and app icons.
-                        </div>
-                    </a>
-
-                    <a href="pages/converters/png-stickers.html" class="converter-card">
-                        <div class="converter-icon">🖼️</div>
-                        <div class="converter-title">Image → 512x512 PNG</div>
-                        <div class="converter-description">
-                            Transform any image into perfect PNG stickers with exactly 512px longest side.
-                            Auto-scales up or down while preserving aspect ratio. Essential for creating high-quality Telegram sticker packs and Discord emojis.
-                            Also works great for social media content and web graphics.
-                        </div>
-                    </a>
-
-                    <a href="pages/converters/image-splitter.html" class="converter-card">
-                        <div class="converter-icon">🗺️</div>
-                        <div class="converter-title">Battle Map Splitter</div>
-                        <div class="converter-description">
-                            Split large battle maps and images into printable A4-sized tiles. Perfect for tabletop RPG maps, large posters, and any image that needs to be printed in sections.
-                            Choose between 2×3 (6 tiles) or 3×3 (9 tiles) grid layouts with automatic margins for clean printing.
-                        </div>
-                    </a>
-
-                    <a href="pages/converters/grid-generator.html" class="converter-card">
-                        <div class="converter-icon">⚏</div>
-                        <div class="converter-title">25mm Grid Generator</div>
-                        <div class="converter-description">
-                            Generate precise 25mm grids for battle maps and tabletop gaming. Perfect for Procreate and digital art tools.
-                            Create custom-sized grids with transparent backgrounds, adjustable colors, and major grid lines for easy alignment.
-                        </div>
-                    </a>
-                </div>
-            </section>
-
-            <section class="features">
-                <h3>✨ Key Features</h3>
-                <div class="features-grid">
-                    <div class="feature">
-                        <div class="feature-icon">🔒</div>
-                        <div class="feature-text"><strong>Privacy First:</strong> All processing happens in your browser. No uploads to servers.</div>
-                    </div>
-                    <div class="feature">
-                        <div class="feature-icon">⚡</div>
-                        <div class="feature-text"><strong>Fast & Efficient:</strong> Instant conversion with optimized algorithms and bulk processing.</div>
-                    </div>
-                    <div class="feature">
-                        <div class="feature-icon">🎨</div>
-                        <div class="feature-text"><strong>Professional Quality:</strong> Advanced timeline controls and precise editing capabilities.</div>
-                    </div>
-                    <div class="feature">
-                        <div class="feature-icon">📱</div>
-                        <div class="feature-text"><strong>Works Everywhere:</strong> Responsive design works on desktop, tablet, and mobile devices.</div>
-                    </div>
-                </div>
-            </section>
-
-            <section class="use-cases">
-                <h3>🎯 Perfect For</h3>
-                <div class="use-cases-grid">
-                    <div class="use-case">
-                        <h4>💬 Chat Platforms</h4>
-                        <p>Create custom stickers and emojis for Telegram, Discord, WhatsApp, and other messaging apps.</p>
-                    </div>
-                    <div class="use-case">
-                        <h4>🌐 Web Development</h4>
-                        <p>Optimize images for websites, reduce file sizes, and create responsive graphics.</p>
-                    </div>
-                    <div class="use-case">
-                        <h4>📱 App Development</h4>
-                        <p>Generate app icons, profile pictures, and user interface elements in various sizes.</p>
-                    </div>
-                    <div class="use-case">
-                        <h4>🎬 Content Creation</h4>
-                        <p>Edit GIF animations, create loops, and convert to modern formats for social media.</p>
-                    </div>
-                </div>
-            </section>
-
-            <!-- PWA Features Section -->
-            <section class="pwa-info-section">
-                <div class="pwa-info-card">
-                    <div class="pwa-info-header">
-                        <h3>📱 Install as Mobile App</h3>
-                        <button class="pwa-info-btn" onclick="pwaInstallGuide.showGuide()">
-                            Learn How
-                        </button>
-                    </div>
-                    <p class="pwa-info-description">
-                        Get the best experience by installing our converter as an app on your phone or computer. 
-                        It works offline, loads faster, and feels just like a native app!
-                    </p>
-                    
-                    <div class="pwa-benefits-grid">
-                        <div class="pwa-benefit">
-                            <span class="pwa-benefit-icon">⚡</span>
-                            <span>Lightning Fast</span>
-                        </div>
-                        <div class="pwa-benefit">
-                            <span class="pwa-benefit-icon">📱</span>
-                            <span>Works Offline</span>
-                        </div>
-                        <div class="pwa-benefit">
-                            <span class="pwa-benefit-icon">🚀</span>
-                            <span>App-like Feel</span>
-                        </div>
-                        <div class="pwa-benefit">
-                            <span class="pwa-benefit-icon">💾</span>
-                            <span>Less Storage</span>
-                        </div>
-                    </div>
-                </div>
-            </section>
-        </main>
-
-        <footer>
-            <p>© 2025 File Converter & Editor. Built with ❤️ for creators and developers.</p>
-        </footer>
+  <main class="wrap">
+    <div class="intro">
+      <h1>Tools for stickers, photos<br>and printed battle maps.</h1>
+      <p>Six single-purpose converters. Images never leave your browser; the GIF tool sends files to a small server that deletes them right after.</p>
     </div>
 
-    <!-- Scripts loaded at bottom for better performance -->
-    <script src="assets/scripts/core/logger.js"></script>
-    <script src="assets/scripts/core/error-handler.js"></script>
-    <script src="assets/scripts/core/performance-monitor.js"></script>
-    <script src="assets/scripts/core/icon-generator.js"></script>
-    <script src="assets/scripts/core/file-validator.js"></script>
-    <script src="assets/scripts/core/theme-switcher.js"></script>
-    <script src="assets/scripts/core/pwa-manager.js"></script>
-    <script src="assets/scripts/core/pwa-install-guide.js"></script>
+    <ol class="index">
+      <li class="index-group">Images</li>
+      <li><a href="/pages/converters/png-to-jpeg.html">
+        <span class="n">01</span>
+        <span class="t">PNG <span class="arrow">→</span> JPEG</span>
+        <span class="d">Flattens transparency, adjustable quality. For iCloud Photos and anything else that refuses PNG.</span>
+        <span class="w">browser</span>
+      </a></li>
+      <li><a href="/pages/converters/png-stickers.html">
+        <span class="n">02</span>
+        <span class="t">Sticker 512</span>
+        <span class="d">Longest side exactly 512 px, transparent PNG. The Telegram sticker format.</span>
+        <span class="w">browser</span>
+      </a></li>
+      <li><a href="/pages/converters/png-icons.html">
+        <span class="n">03</span>
+        <span class="t">Emoji 100</span>
+        <span class="d">100 × 100 PNG, fitted or cropped. The Telegram custom emoji format.</span>
+        <span class="w">browser</span>
+      </a></li>
+
+      <li class="index-group">Animation</li>
+      <li><a href="/pages/converters/gif-to-webm.html">
+        <span class="n">04</span>
+        <span class="t">GIF <span class="arrow">→</span> WebM</span>
+        <span class="d">Trim, ping-pong loop and encode to VP9 under a size limit. Telegram video stickers and emoji.</span>
+        <span class="w">server</span>
+      </a></li>
+
+      <li class="index-group">Tabletop</li>
+      <li><a href="/pages/converters/image-splitter.html">
+        <span class="n">05</span>
+        <span class="t">Map splitter</span>
+        <span class="d">Cuts a 150 DPI map into A4 pages at true scale, as one PDF ready to print.</span>
+        <span class="w">browser</span>
+      </a></li>
+      <li><a href="/pages/converters/grid-generator.html">
+        <span class="n">06</span>
+        <span class="t">25 mm grid</span>
+        <span class="d">Transparent square grid at 150 DPI to draw maps on in Procreate.</span>
+        <span class="w">browser</span>
+      </a></li>
+    </ol>
+  </main>
+
+  <footer class="site-foot">
+    <div class="wrap">
+      <span>converter.piogino.ch</span>
+      <span>Works offline once loaded · add it to your home screen from the browser menu</span>
+    </div>
+  </footer>
+
+  <script src="/assets/js/core.js"></script>
 </body>
 </html>

@@ -1,319 +1,111 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <meta http-equiv="Pragma" content="no-cache">
-    <meta http-equiv="Expires" content="0">
-    <title>Battle Map Splitter - Print Large Images on A4</title>
-    <meta name="description" content="Split large battle maps and images into printable A4-sized tiles. Perfect for tabletop RPG maps, posters, and large format printing.">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗺️</text></svg>">
-    <link rel="stylesheet" href="../../assets/styles/styles.css">
-    <script>
-        // Prevent flash of light theme - must run immediately before page renders
-        (function() {
-            const theme = localStorage.getItem('preferred-theme') || 'system';
-            if (theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-                document.documentElement.setAttribute('data-theme', 'dark');
-            }
-        })();
-    </script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Map splitter · converter.piogino</title>
+  <meta name="description" content="Split a large battle map into A4 pages at true printed scale, as one PDF.">
+  <link rel="canonical" href="https://converter.piogino.ch/pages/converters/image-splitter.html">
+  <link rel="icon" href="/assets/icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/assets/icons/icon-192.png">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#f3f0e8" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#151412" media="(prefers-color-scheme: dark)">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="/assets/site.css">
+  <script>try{var t=localStorage.getItem('preferred-theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
 </head>
-<body class="converter-page image-splitter">
-    <div class="container">
-        <h1>🗺️ Battle Map Splitter</h1>
-        <p class="subtitle">
-            Split your large battle maps and images into A4-sized tiles for easy printing.<br>
-            Perfect for tabletop RPG maps, large posters, and any image that needs to be printed in sections.
-            <br><br>
-            <strong>📖 How it works:</strong> Choose a grid layout (2×3 or 3×3), upload your image, and get perfectly sized tiles with print margins.
-        </p>
-
-        <!-- Navigation will be dynamically loaded -->
-        <div id="navigation-placeholder"></div>
-
-        <!-- Grid Selection Section -->
-        <section class="grid-selection-section">
-            <h3>Choose Your Grid Layout</h3>
-            <div class="grid-options">
-                <div class="grid-option" data-grid="2x3">
-                    <div class="grid-preview">
-                        <div class="grid-visual grid-2x3">
-                            <div class="grid-cell">1</div>
-                            <div class="grid-cell">2</div>
-                            <div class="grid-cell">3</div>
-                            <div class="grid-cell">4</div>
-                            <div class="grid-cell">5</div>
-                            <div class="grid-cell">6</div>
-                        </div>
-                    </div>
-                    <div class="grid-info">
-                        <h4>2×3 Grid - Standard Battle Maps</h4>
-                        <div class="grid-specs">
-                            <p><strong>📐 Input Required:</strong> 3366 × 3276 pixels (570 × 554 mm at 150 DPI)</p>
-                            <p><strong>🎯 Why This Size:</strong> Optimized for standard tabletop battle encounters. Each tile prints at exactly 190×277mm, fitting perfectly on A4 paper with 1cm margins for clean printing and easy handling.</p>
-                            <p><strong>📄 Output:</strong> 6 printable A4 pages that assemble into a 57×55cm battle map</p>
-                            <p><strong>🎲 Perfect For:</strong> Standard D&D encounters, small dungeon rooms, tavern interiors, single-room battles</p>
-                            <p><strong>⚡ Print Quality:</strong> 150 DPI ensures crisp 25mm grid squares for miniatures</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="grid-option" data-grid="3x3">
-                    <div class="grid-preview">
-                        <div class="grid-visual grid-3x3">
-                            <div class="grid-cell">1</div>
-                            <div class="grid-cell">2</div>
-                            <div class="grid-cell">3</div>
-                            <div class="grid-cell">4</div>
-                            <div class="grid-cell">5</div>
-                            <div class="grid-cell">6</div>
-                            <div class="grid-cell">7</div>
-                            <div class="grid-cell">8</div>
-                            <div class="grid-cell">9</div>
-                        </div>
-                    </div>
-                    <div class="grid-info">
-                        <h4>3×3 Grid - Large Dungeon Maps</h4>
-                        <div class="grid-specs">
-                            <p><strong>📐 Input Required:</strong> 3366 × 4914 pixels (570 × 833 mm at 150 DPI)</p>
-                            <p><strong>🎯 Why This Size:</strong> Designed for epic encounters and large exploration areas. The 50% taller format accommodates sprawling dungeon complexes, outdoor wilderness, and multi-room encounters that need more vertical space.</p>
-                            <p><strong>📄 Output:</strong> 9 printable A4 pages that assemble into a massive 57×83.2cm battle map</p>
-                            <p><strong>🎲 Perfect For:</strong> Large dungeons, outdoor wilderness encounters, castle layouts, town squares, boss battle arenas</p>
-                            <p><strong>⚡ Print Quality:</strong> Same 150 DPI standard ensures perfect 25mm grid alignment across all 9 tiles</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- File Upload Section -->
-        <section class="upload-section hidden-section">
-            <div class="upload-area" id="uploadArea">
-                <div class="upload-content">
-                    <div class="upload-icon">🗺️</div>
-                    <h3>Upload Your Battle Map</h3>
-                    <p id="uploadDescription">Upload your battle map image</p>
-                    
-                    <div class="size-requirements">
-                        <div class="requirement-box">
-                            <h4>📏 Exact Size Required</h4>
-                            <p>Your image must be <strong>exactly</strong> the specified pixel dimensions. The app will automatically add <strong>10mm borders</strong> (1cm) around each tile during processing for clean printing and easy stitching.</p>
-                            
-                            <div class="size-breakdown">
-                                <div class="breakdown-item">
-                                    <strong>Your Input:</strong> <span id="inputDimensions">Select grid first</span>
-                                </div>
-                                <div class="breakdown-arrow">↓ Processing adds borders ↓</div>
-                                <div class="breakdown-item">
-                                    <strong>Final Tiles:</strong> Each tile becomes 210×297mm (full A4)
-                                </div>
-                            </div>
-                            
-                            <p class="border-explanation">
-                                <strong>🎯 Why 10mm borders?</strong> The white borders ensure perfect alignment when assembling your map and prevent any important details from being cut off during printing.
-                            </p>
-                        </div>
-                    </div>
-                    
-                    <p>Supported formats: PNG, JPG, JPEG</p>
-                    <input type="file" id="fileInput" accept="image/*" hidden>
-                    <button class="upload-btn" onclick="document.getElementById('fileInput').click()">
-                        Choose File
-                    </button>
-                    <button class="back-btn" id="backToGridBtn">← Change Grid Layout</button>
-                </div>
-            </div>
-        </section>
-
-        <!-- Preview Section -->
-        <section class="preview-section hidden-section" id="previewSection">
-            <h3>Preview & Split Settings</h3>
-            <div class="preview-container">
-                <div class="image-preview">
-                    <canvas id="previewCanvas"></canvas>
-                    <div class="grid-overlay" id="gridOverlay"></div>
-                </div>
-                <div class="settings-panel">
-                    <div class="image-info" id="imageInfo"></div>
-                    <div class="split-info">
-                        <h4>Split Configuration</h4>
-                        <p id="gridConfig"><strong>Grid:</strong> 2 rows × 3 columns (6 tiles)</p>
-                        <p><strong>Tile Size:</strong> 190mm × 277mm (1122 × 1638 pixels)</p>
-                        <p><strong>Margins:</strong> 1cm white border around each tile with position numbers in corners</p>
-                        <p><strong>🔢 Tile Numbers:</strong> Each corner shows the position (e.g., "1-1", "2-3") for easy reassembly</p>
-                    </div>
-                    <div class="export-options">
-                        <h4>Export Options</h4>
-                        <div class="format-info">
-                            <p><strong>🖨️ For Printing:</strong> Use PDF for reliable, consistent print results with exact sizing</p>
-                            <p><strong>💻 For Digital:</strong> Use PNG for sharing online or digital display</p>
-                        </div>
-                        <label>
-                            <input type="radio" name="format" value="pdf" checked>
-                            <strong>📄 PDF Files (Recommended for Printing)</strong>
-                        </label>
-                        <label>
-                            <input type="radio" name="format" value="png">
-                            🖼️ PNG Images (Maximum Quality for Digital Use)
-                        </label>
-                        <button class="export-btn" id="exportBtn">
-                            Export Tiles
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Export Progress -->
-        <section class="export-section hidden-section" id="exportSection">
-            <h3>Exporting Tiles...</h3>
-            <div class="progress-container">
-                <div class="progress-bar">
-                    <div class="progress-fill" id="progressFill"></div>
-                </div>
-                <div class="progress-text" id="progressText">0 tiles exported</div>
-            </div>
-            
-            <!-- Bulk Download Section -->
-            <div class="bulk-download" id="bulkDownloadSection" style="display: none;">
-                <button class="download-all-btn" id="downloadAllBtn">
-                    📁 Download All Tiles
-                </button>
-                <p class="bulk-download-info">All tiles will be downloaded individually to your Downloads folder.</p>
-            </div>
-            
-            <div class="download-links" id="downloadLinks"></div>
-        </section>
-
-        <div class="tech-specs">
-            <h3>🔧 Perfect for Procreate Users</h3>
-            <div class="procreate-guide">
-                <div class="guide-section">
-                    <h4>For Standard Battle Maps (2×3 Grid):</h4>
-                    <ol>
-                        <li>Set canvas size to <strong>570mm × 554mm</strong> at <strong>150 DPI</strong></li>
-                        <li>Create your battle map</li>
-                        <li>Export as PNG or JPG</li>
-                        <li>Upload to web app and select <strong>2×3 Grid</strong></li>
-                        <li>Print 6 tiles and assemble your battle map!</li>
-                    </ol>
-                </div>
-                <div class="guide-section">
-                    <h4>For Large Dungeon Maps (3×3 Grid):</h4>
-                    <ol>
-                        <li>Set canvas size to <strong>570mm × 832mm</strong> at <strong>150 DPI</strong></li>
-                        <li>Create your large dungeon or outdoor map</li>
-                        <li>Export as PNG or JPG</li>
-                        <li>Upload to web app and select <strong>3×3 Grid</strong></li>
-                        <li>Print 9 tiles and assemble your massive battle map!</li>
-                    </ol>
-                </div>
-            </div>
-            
-            <h4>📋 Why These Specific Sizes? - Technical Deep Dive</h4>
-            
-            <div class="tech-explanation">
-                <div class="tech-section">
-                    <h5>🎯 A4 Paper Optimization</h5>
-                    <p>Both grid systems are engineered around standard A4 paper (210×297mm). Each tile is sized at 190×277mm to fit comfortably with 1cm margins on all sides, ensuring clean printing without edge cutoffs on any consumer printer.</p>
-                </div>
-                
-                <div class="tech-section">
-                    <h5>📐 150 DPI Standard</h5>
-                    <p>The 150 DPI resolution is the sweet spot for tabletop gaming:</p>
-                    <ul>
-                        <li><strong>Perfect Grid Squares:</strong> 25mm squares = exactly 147.6 pixels at 150 DPI</li>
-                        <li><strong>Miniature Compatibility:</strong> Standard 28-32mm miniatures fit perfectly</li>
-                        <li><strong>Print Quality:</strong> Crisp details without massive file sizes</li>
-                        <li><strong>Processing Speed:</strong> Fast web browser handling without memory issues</li>
-                    </ul>
-                </div>
-                
-                <div class="tech-section">
-                    <h5>📏 Grid Dimensions Explained</h5>
-                    <p><strong>2×3 Grid (57×55cm):</strong> Based on average tabletop space and typical encounter sizes. Six A4 sheets create a substantial play area without overwhelming smaller tables.</p>
-                    <p><strong>3×3 Grid (57×83cm):</strong> 50% taller format accommodates corridor-heavy dungeons and outdoor scenes that need more vertical space for natural exploration flow.</p>
-                </div>
-                
-                <div class="tech-section">
-                    <h5>🔢 Pixel Mathematics</h5>
-                    <ul>
-                        <li><strong>Tile Size:</strong> 190mm × 277mm = 1122 × 1638 pixels at 150 DPI</li>
-                        <li><strong>2×3 Total:</strong> 3 tiles × 1122px = 3366px wide, 2 tiles × 1638px = 3276px tall</li>
-                        <li><strong>3×3 Total:</strong> 3 tiles × 1122px = 3366px wide, 3 tiles × 1638px = 4914px tall</li>
-                        <li><strong>Margin Addition:</strong> Each tile gets 1cm (59px) margins added during export</li>
-                    </ul>
-                </div>
-                
-                <div class="tech-section">
-                    <h5>✅ Output Quality Guarantee</h5>
-                    <p>When you print the generated tiles at 100% scale on A4 paper, your assembled map will have perfectly aligned grid squares that measure exactly 25mm - the international standard for tabletop miniatures.</p>
-                </div>
-            </div>
-            
-            <h4>💡 Tips for Best Results</h4>
-            <ul>
-                <li>Use the recommended Procreate settings for optimal tile sizing</li>
-                <li>Check image dimensions before exporting from Procreate</li>
-                <li>Print at 100% scale - do not allow your printer to resize</li>
-                <li>Use high-quality paper for better results</li>
-                <li>Test print one tile first to verify scaling</li>
-            </ul>
-        </div>
-
-        <!-- PWA Features Section -->
-        <section class="pwa-info-section">
-            <div class="pwa-info-card">
-                <div class="pwa-info-header">
-                    <h3>📱 Install as Mobile App</h3>
-                    <button class="pwa-info-btn" onclick="pwaInstallGuide.showGuide()">
-                        Learn How
-                    </button>
-                </div>
-                <p class="pwa-info-description">
-                    Get the best experience by installing our converter as an app on your phone or computer. 
-                    It works offline, loads faster, and feels just like a native app!
-                </p>
-                
-                <div class="pwa-benefits-grid">
-                    <div class="pwa-benefit">
-                        <span class="pwa-benefit-icon">⚡</span>
-                        <span>Lightning Fast</span>
-                    </div>
-                    <div class="pwa-benefit">
-                        <span class="pwa-benefit-icon">📱</span>
-                        <span>Works Offline</span>
-                    </div>
-                    <div class="pwa-benefit">
-                        <span class="pwa-benefit-icon">🚀</span>
-                        <span>App-like Feel</span>
-                    </div>
-                    <div class="pwa-benefit">
-                        <span class="pwa-benefit-icon">💾</span>
-                        <span>Less Storage</span>
-                    </div>
-                </div>
-            </div>
-        </section>
+<body>
+  <header class="site-head">
+    <div class="wrap">
+      <a class="mark" href="/"><svg viewBox="0 0 18 18" aria-hidden="true"><rect x="1" y="1" width="7" height="7" fill="currentColor"/><rect x="10.75" y="1.75" width="5.5" height="5.5" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="1.75" y="10.75" width="5.5" height="5.5" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="10" y="10" width="7" height="7" fill="var(--accent)"/></svg>converter<span>.piogino</span></a>
+      <nav class="tools-nav" aria-label="Tools">
+        <a href="/pages/converters/png-to-jpeg.html">png→jpg</a>
+        <a href="/pages/converters/png-stickers.html">sticker 512</a>
+        <a href="/pages/converters/png-icons.html">emoji 100</a>
+        <a href="/pages/converters/gif-to-webm.html">gif→webm</a>
+        <a href="/pages/converters/image-splitter.html" aria-current="page">map splitter</a>
+        <a href="/pages/converters/grid-generator.html">25 mm grid</a>
+      </nav>
+      <button class="theme-btn" type="button">system</button>
     </div>
-    
-    <!-- Scripts -->
-    <!-- External Libraries -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    
-    <!-- Core Scripts -->
-    <script src="../../assets/scripts/core/navigation.js?v=202509292053"></script>
-    <script src="../../assets/scripts/core/logger.js?v=202509292036"></script>
-    <script src="../../assets/scripts/core/error-handler.js?v=202509292036"></script>
-    <script src="../../assets/scripts/core/performance-monitor.js?v=202509292036"></script>
-    <script src="../../assets/scripts/core/file-validator.js?v=202509292036"></script>
-    <script src="../../assets/scripts/core/theme-switcher.js?v=202509292036"></script>
-    <script src="../../assets/scripts/core/pwa-manager.js?v=202509292036"></script>
-    <script src="../../assets/scripts/core/pwa-install-guide.js?v=202509292036"></script>
-    
-    <!-- Page Script -->
-    <script src="../../assets/scripts/converters/image-splitter.js?v=20251001011"></script>
+  </header>
+
+  <main class="wrap">
+    <div class="intro">
+      <h1>Map splitter</h1>
+      <p>Cuts a large map into A4 pages at its real printed size, so a 25 mm square stays 25 mm. Every page keeps a 10 mm white border and is labelled row–column in its corners.</p>
+      <div class="spec"><span>In <b>PNG · JPEG</b></span><span>Out <b>one PDF or zipped PNG pages</b></span><span>Runs <b>in your browser</b></span></div>
+    </div>
+
+    <div class="drop" id="drop" tabindex="0" role="button" aria-label="Drop a map here">
+      <div><strong>Drop a map here</strong><small>or click to choose · paste works too</small></div>
+      <input type="file" accept="image/*">
+    </div>
+    <p class="msg" id="msg"></p>
+
+    <section id="work" hidden>
+      <div class="two-col">
+        <div class="stage"><canvas id="preview"></canvas></div>
+        <div>
+          <dl class="facts" id="facts"></dl>
+          <div class="panel stacked">
+            <div class="field">
+              <label for="dpi">Image resolution (DPI)</label>
+              <input type="number" id="dpi" min="50" max="600" step="1" value="150">
+            </div>
+            <fieldset class="field">
+              <legend>Pages</legend>
+              <div class="seg">
+                <label><input type="radio" name="orient" value="auto" checked><span>Fewest</span></label>
+                <label><input type="radio" name="orient" value="portrait"><span>Portrait</span></label>
+                <label><input type="radio" name="orient" value="landscape"><span>Landscape</span></label>
+              </div>
+            </fieldset>
+            <fieldset class="field">
+              <legend>Output</legend>
+              <div class="seg">
+                <label><input type="radio" name="out" value="pdf" checked><span>PDF</span></label>
+                <label><input type="radio" name="out" value="png"><span>PNG pages (.zip)</span></label>
+              </div>
+            </fieldset>
+          </div>
+          <div class="actions">
+            <button class="btn" type="button" id="export">Download</button>
+            <button class="btn ghost" type="button" id="another">Another map</button>
+          </div>
+          <p class="msg" id="exportMsg"></p>
+        </div>
+      </div>
+    </section>
+
+    <div class="notes">
+      <div>
+        <h2>Sizes that fill the pages</h2>
+        <p><code>3366 × 3276 px</code> → 3 × 2 pages, 57 × 55.5 cm.<br><code>3366 × 4914 px</code> → 3 × 3 pages, 57 × 83 cm.<br>Any other size works too; the last row and column are just partly empty.</p>
+      </div>
+      <div>
+        <h2>In Procreate</h2>
+        <p>Make the canvas 570 × 555 mm (or 570 × 832 mm) at 150 DPI. A <a href="/pages/converters/grid-generator.html">25 mm grid</a> of the same size lines up with it.</p>
+      </div>
+      <div>
+        <h2>Printing</h2>
+        <p>Print at <b>100 %</b> or <b>actual size</b>, never “fit to page”. Trim along one edge of the border and overlap the next page.</p>
+      </div>
+    </div>
+  </main>
+
+  <footer class="site-foot">
+    <div class="wrap">
+      <a href="/">converter.piogino.ch</a>
+      <span>Runs in your browser · nothing is uploaded</span>
+    </div>
+  </footer>
+
+  <script src="/assets/js/core.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="/assets/js/splitter.js"></script>
 </body>
 </html>

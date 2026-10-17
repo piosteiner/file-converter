@@ -1,120 +1,22 @@
 {
-  "name": "File Converter & Editor",
-  "short_name": "FileConverter",
-  "description": "Professional file conversion and editing tools for images and animations. PNG to JPEG, GIF to WebM, and advanced editing capabilities.",
+  "name": "converter.piogino",
+  "short_name": "converter",
+  "description": "PNG to JPEG, Telegram stickers and emoji, GIF to WebM, battle map splitting and 25 mm grids.",
   "start_url": "/",
-  "display": "standalone",
-  "background_color": "#667eea",
-  "theme_color": "#667eea",
-  "orientation": "portrait-primary",
   "scope": "/",
+  "display": "standalone",
+  "background_color": "#f3f0e8",
+  "theme_color": "#1c1b18",
   "lang": "en",
-  "categories": ["productivity", "utilities", "photo"],
   "icons": [
-    {
-      "src": "assets/icons/icon-72x72.png",
-      "sizes": "72x72",
-      "type": "image/png",
-      "purpose": "maskable any"
-    },
-    {
-      "src": "assets/icons/icon-96x96.png",
-      "sizes": "96x96",
-      "type": "image/png",
-      "purpose": "maskable any"
-    },
-    {
-      "src": "assets/icons/icon-128x128.png",
-      "sizes": "128x128",
-      "type": "image/png",
-      "purpose": "maskable any"
-    },
-    {
-      "src": "assets/icons/icon-144x144.png",
-      "sizes": "144x144",
-      "type": "image/png",
-      "purpose": "maskable any"
-    },
-    {
-      "src": "assets/icons/icon-152x152.png",
-      "sizes": "152x152",
-      "type": "image/png",
-      "purpose": "maskable any"
-    },
-    {
-      "src": "assets/icons/icon-192x192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "maskable any"
-    },
-    {
-      "src": "assets/icons/icon-384x384.png",
-      "sizes": "384x384",
-      "type": "image/png",
-      "purpose": "maskable any"
-    },
-    {
-      "src": "assets/icons/icon-512x512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable any"
-    }
+    { "src": "/assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/assets/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/assets/icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }
   ],
   "shortcuts": [
-    {
-      "name": "PNG to JPEG",
-      "short_name": "PNG→JPEG",
-      "description": "Convert PNG images to JPEG format",
-      "url": "/pages/converters/png-to-jpeg.html",
-      "icons": [
-        {
-          "src": "assets/icons/shortcut-png-converter.png",
-          "sizes": "96x96",
-          "type": "image/png"
-        }
-      ]
-    },
-    {
-      "name": "GIF to WebM",
-      "short_name": "GIF→WebM",
-      "description": "Convert and edit GIF animations",
-      "url": "/pages/converters/gif-to-webm.html",
-      "icons": [
-        {
-          "src": "assets/icons/shortcut-gif-converter.png",
-          "sizes": "96x96",
-          "type": "image/png"
-        }
-      ]
-    },
-    {
-      "name": "Create Icons",
-      "short_name": "Icons",
-      "description": "Create 100x100 PNG icons",
-      "url": "/pages/converters/png-icons.html",
-      "icons": [
-        {
-          "src": "assets/icons/shortcut-icon-maker.png",
-          "sizes": "96x96",
-          "type": "image/png"
-        }
-      ]
-    }
-  ],
-  "screenshots": [
-    {
-      "src": "assets/screenshots/desktop-home.png",
-      "type": "image/png",
-      "sizes": "1280x720",
-      "form_factor": "wide",
-      "label": "File Converter home page on desktop"
-    },
-    {
-      "src": "assets/screenshots/mobile-home.png",
-      "type": "image/png",
-      "sizes": "360x640",
-      "form_factor": "narrow",
-      "label": "File Converter home page on mobile"
-    }
+    { "name": "PNG → JPEG", "url": "/pages/converters/png-to-jpeg.html" },
+    { "name": "GIF → WebM", "url": "/pages/converters/gif-to-webm.html" },
+    { "name": "Map splitter", "url": "/pages/converters/image-splitter.html" }
   ]
 }

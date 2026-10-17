@@ -1,193 +1,86 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <meta http-equiv="Pragma" content="no-cache">
-    <meta http-equiv="Expires" content="0">
-    <title>Image → 100x100 PNG Icon Converter</title>
-    <meta name="description" content="Convert any image to a 100x100 PNG icon with transparent background. Perfect for avatars, app icons, and profile pictures.">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🖼️</text></svg>">
-    <link rel="stylesheet" href="../../assets/styles/styles.css">
-    <script>
-        // Prevent flash of light theme - must run immediately before page renders
-        (function() {
-            const theme = localStorage.getItem('preferred-theme') || 'system';
-            if (theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-                document.documentElement.setAttribute('data-theme', 'dark');
-            }
-        })();
-    </script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Emoji 100 · converter.piogino</title>
+  <meta name="description" content="Turn images into 100 × 100 PNG files for Telegram custom emoji.">
+  <link rel="canonical" href="https://converter.piogino.ch/pages/converters/png-icons.html">
+  <link rel="icon" href="/assets/icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/assets/icons/icon-192.png">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#f3f0e8" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#151412" media="(prefers-color-scheme: dark)">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="/assets/site.css">
+  <script>try{var t=localStorage.getItem('preferred-theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
 </head>
-<body class="converter-page png-icons">
-    <div class="container">
-        <h1>🖼️ Image → 100×100 PNG Converter</h1>
-        <p class="subtitle">
-            Convert any image to a perfect 100×100 pixel PNG icon with transparent background.<br>
-            Maintains aspect ratio and centers your image automatically.
-            <br><br>
-            This tool was originally intended for the creation of custom stickers in the Telegram messaging app.
-            <br><br>
-            <strong>📖 Resources:</strong> <a href="https://core.telegram.org/stickers" target="_blank" rel="noopener">Telegram Stickers Guide</a>
-        </p>
+<body data-mode="emoji">
+  <header class="site-head">
+    <div class="wrap">
+      <a class="mark" href="/"><svg viewBox="0 0 18 18" aria-hidden="true"><rect x="1" y="1" width="7" height="7" fill="currentColor"/><rect x="10.75" y="1.75" width="5.5" height="5.5" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="1.75" y="10.75" width="5.5" height="5.5" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="10" y="10" width="7" height="7" fill="var(--accent)"/></svg>converter<span>.piogino</span></a>
+      <nav class="tools-nav" aria-label="Tools">
+        <a href="/pages/converters/png-to-jpeg.html">png→jpg</a>
+        <a href="/pages/converters/png-stickers.html">sticker 512</a>
+        <a href="/pages/converters/png-icons.html" aria-current="page">emoji 100</a>
+        <a href="/pages/converters/gif-to-webm.html">gif→webm</a>
+        <a href="/pages/converters/image-splitter.html">map splitter</a>
+        <a href="/pages/converters/grid-generator.html">25 mm grid</a>
+      </nav>
+      <button class="theme-btn" type="button">system</button>
+    </div>
+  </header>
 
-        <!-- Navigation will be dynamically loaded -->
-        <div id="navigation-placeholder"></div>
+  <main class="wrap">
+    <div class="intro">
+      <h1>Emoji 100</h1>
+      <p>Turns images into 100 × 100 PNG files for Telegram custom emoji. <em>Fit</em> keeps the whole image and pads the rest; <em>fill</em> crops it to the square.</p>
+      <div class="spec"><span>In <b>any image</b></span><span>Out <b>PNG · 100 × 100</b></span><span>Runs <b>in your browser</b></span></div>
+    </div>
 
-        <div class="features-grid">
-            <div class="feature-card">
-                <span class="feature-icon">📐</span>
-                <div class="feature-title">Perfect Square</div>
-                <div class="feature-desc">Exactly 100×100 pixels</div>
-            </div>
-            <div class="feature-card">
-                <span class="feature-icon">🔄</span>
-                <div class="feature-title">Aspect Ratio</div>
-                <div class="feature-desc">Maintains original proportions</div>
-            </div>
-            <div class="feature-card">
-                <span class="feature-icon">✨</span>
-                <div class="feature-title">Transparent</div>
-                <div class="feature-desc">PNG with alpha channel</div>
-            </div>
-            <div class="feature-card">
-                <span class="feature-icon">🎯</span>
-                <div class="feature-title">Auto Center</div>
-                <div class="feature-desc">Perfectly centered result</div>
-            </div>
+    <div class="panel">
+      <fieldset class="field">
+        <legend>Scaling</legend>
+        <div class="seg">
+          <label><input type="radio" name="fit" value="contain" checked><span>Fit</span></label>
+          <label><input type="radio" name="fit" value="cover"><span>Fill</span></label>
         </div>
-
-        <div class="upload-section">
-            <div class="drop-zone" id="dropZone">
-                <span class="drop-icon">📷</span>
-                <div class="drop-text">Drop your image here</div>
-                <div class="drop-subtext">or click to browse • Supports JPG, PNG, GIF, WebP, BMP</div>
-            </div>
-            <input type="file" id="fileInput" accept="image/*" class="hidden">
+      </fieldset>
+      <fieldset class="field">
+        <legend>Background</legend>
+        <div class="seg">
+          <label><input type="radio" name="bg" value="transparent" checked><span>Transparent</span></label>
+          <label><input type="radio" name="bg" value="#ffffff"><span>White</span></label>
+          <label><input type="radio" name="bg" value="#000000"><span>Black</span></label>
         </div>
+      </fieldset>
+    </div>
 
-        <div class="preview-section hidden" id="previewSection">
-            <div class="preview-grid">
-                <div class="preview-container">
-                    <div class="preview-title">Original Image</div>
-                    <img id="originalPreview" class="preview-image" alt="Original image">
-                    <div class="preview-info" id="originalInfo">Loading...</div>
-                </div>
-                
-                <div class="arrow">→</div>
-                
-                <div class="preview-container">
-                    <div class="preview-title">100×100 PNG Result</div>
-                    <div class="result-preview">
-                        <img id="resultPreview" class="result-image hidden" alt="Converted image">
-                    </div>
-                    <div class="preview-info" id="resultInfo">Processing...</div>
-                </div>
-            </div>
-        </div>
+    <div class="drop" id="drop" tabindex="0" role="button" aria-label="Drop images here">
+      <div><strong>Drop images here</strong><small>or click to choose · paste works too</small></div>
+      <input type="file" accept="image/*" multiple>
+    </div>
+    <p class="msg" id="msg"></p>
+    <div class="results" id="results"></div>
 
-        <div class="controls hidden" id="controlsSection">
-            <div class="control-group">
-                <label class="control-label">Background</label>
-                <div class="radio-group">
-                    <label class="radio-option">
-                        <input type="radio" name="background" value="transparent" checked>
-                        <span>Transparent (recommended)</span>
-                    </label>
-                    <label class="radio-option">
-                        <input type="radio" name="background" value="white">
-                        <span>White background</span>
-                    </label>
-                    <label class="radio-option">
-                        <input type="radio" name="background" value="black">
-                        <span>Black background</span>
-                    </label>
-                </div>
-            </div>
+    <div class="notes">
+      <div>
+        <h2>Next step</h2>
+        <p>Create an emoji set with <a href="https://t.me/stickers" rel="noopener">@Stickers</a> using <code>/newemojipack</code>. Changing the options above redoes the files already in the list.</p>
+      </div>
+    </div>
+  </main>
 
-            <div class="control-group">
-                <label class="control-label">Scaling Method</label>
-                <div class="radio-group">
-                    <label class="radio-option">
-                        <input type="radio" name="scaling" value="contain" checked>
-                        <span>Fit within 100×100 (recommended)</span>
-                    </label>
-                    <label class="radio-option">
-                        <input type="radio" name="scaling" value="cover">
-                        <span>Fill 100×100 (may crop)</span>
-                    </label>
-                </div>
-            </div>
-        </div>
+  <footer class="site-foot">
+    <div class="wrap">
+      <a href="/">converter.piogino.ch</a>
+      <span>Runs in your browser · nothing is uploaded</span>
+    </div>
+  </footer>
 
-        <div class="download-section hidden" id="downloadSection">
-            <button class="download-btn" id="downloadBtn">
-                <span>💾</span>
-                <span>Download 100×100 PNG</span>
-            </button>
-        </div>
-
-        <div class="status hidden" id="status"></div>
-
-        <div class="tech-specs">
-            <h3>🔧 Technical Specifications</h3>
-            <ul>
-                <li>Output format: PNG with alpha transparency</li>
-                <li>Exact dimensions: 100×100 pixels</li>
-                <li>Maintains original aspect ratio</li>
-                <li>High-quality resampling (Lanczos)</li>
-                <li>Server-side processing with ImageMagick/FFmpeg</li>
-                <li>Supports all common image formats</li>
-                <li>Perfect for: App icons, avatars, profile pictures</li>
-            </ul>
-        </div>
-
-        <!-- PWA Features Section -->
-        <section class="pwa-info-section">
-            <div class="pwa-info-card">
-                <div class="pwa-info-header">
-                    <h3>📱 Install as Mobile App</h3>
-                    <button class="pwa-info-btn" onclick="pwaInstallGuide.showGuide()">
-                        Learn How
-                    </button>
-                </div>
-                <p class="pwa-info-description">
-                    Get the best experience by installing our converter as an app on your phone or computer. 
-                    It works offline, loads faster, and feels just like a native app!
-                </p>
-                
-                <div class="pwa-benefits-grid">
-                    <div class="pwa-benefit">
-                        <span class="pwa-benefit-icon">⚡</span>
-                        <span>Lightning Fast</span>
-                    </div>
-                    <div class="pwa-benefit">
-                        <span class="pwa-benefit-icon">📱</span>
-                        <span>Works Offline</span>
-                    </div>
-                    <div class="pwa-benefit">
-                        <span class="pwa-benefit-icon">🚀</span>
-                        <span>App-like Feel</span>
-                    </div>
-                    <div class="pwa-benefit">
-                        <span class="pwa-benefit-icon">💾</span>
-                        <span>Less Storage</span>
-                    </div>
-                </div>
-            </div>
-        </section>
-    </div>        <!-- Scripts -->    <!-- Scripts -->
-    <script src="../../assets/scripts/core/navigation.js?v=202509292053"></script>
-    <script src="../../assets/scripts/core/logger.js?v=202509292036"></script>
-    <script src="../../assets/scripts/core/error-handler.js?v=202509292036"></script>
-    <script src="../../assets/scripts/core/performance-monitor.js?v=202509292036"></script>
-    <script src="../../assets/scripts/core/file-validator.js?v=202509292036"></script>
-    <script src="../../assets/scripts/core/theme-switcher.js?v=202509292036"></script>
-    <script src="../../assets/scripts/core/pwa-manager.js?v=202509292036"></script>
-    <script src="../../assets/scripts/core/pwa-install-guide.js?v=202509292036"></script>
-    <script src="../../assets/scripts/core/api_client.js?v=202509292036"></script>
-    <script src="../../assets/scripts/core/ui_helpers.js?v=202509292036"></script>
-    <script src="../../assets/scripts/converters/png-icons.js?v=202509292036"></script>
+  <script src="/assets/js/core.js"></script>
+  <script src="/assets/js/resize.js"></script>
 </body>
 </html>

@@ -1,100 +1,73 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <meta http-equiv="Pragma" content="no-cache">
-    <meta http-equiv="Expires" content="0">
-    <title>PNG to JPEG Converter</title>
-    <meta name="description" content="Free online PNG to JPEG converter with adjustable quality settings.">
-    <meta name="keywords" content="PNG to JPEG, image converter, PNG converter">
-    <link rel="canonical" href="https://converter.piogino.ch/html/png-converter.html">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📸</text></svg>">
-    <link rel="manifest" href="../../manifest.json">
-    <meta name="theme-color" content="#667eea">
-    <link rel="stylesheet" href="../../assets/styles/styles.css">
-    <script>
-        // Prevent flash of light theme - must run immediately before page renders
-        (function() {
-            const theme = localStorage.getItem('preferred-theme') || 'system';
-            if (theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-                document.documentElement.setAttribute('data-theme', 'dark');
-            }
-        })();
-    </script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PNG to JPEG · converter.piogino</title>
+  <meta name="description" content="Convert PNG images to JPEG in the browser, one at a time or in bulk.">
+  <link rel="canonical" href="https://converter.piogino.ch/pages/converters/png-to-jpeg.html">
+  <link rel="icon" href="/assets/icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/assets/icons/icon-192.png">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#f3f0e8" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#151412" media="(prefers-color-scheme: dark)">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="/assets/site.css">
+  <script>try{var t=localStorage.getItem('preferred-theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
 </head>
-<body class="converter-page png-converter">
-    <div class="container">
-        <h1>📸 PNG → JPEG</h1>
-        <p class="subtitle">Convert PNG images to JPEG format with adjustable quality. Developed for the quick conversion of image types for the upload to iCloud Photos.</p>
-        
-        <!-- Navigation will be dynamically loaded -->
-        <div id="navigation-placeholder"></div>
-        
-        <div class="controls">
-            <div class="control-group">
-                <label class="control-label" for="quality">JPEG Quality</label>
-                <input type="range" id="quality" class="control-input" min="10" max="100" value="100">
-                <div class="control-value" id="qualityValue">100%</div>
-            </div>
-        </div>
+<body>
+  <header class="site-head">
+    <div class="wrap">
+      <a class="mark" href="/"><svg viewBox="0 0 18 18" aria-hidden="true"><rect x="1" y="1" width="7" height="7" fill="currentColor"/><rect x="10.75" y="1.75" width="5.5" height="5.5" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="1.75" y="10.75" width="5.5" height="5.5" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="10" y="10" width="7" height="7" fill="var(--accent)"/></svg>converter<span>.piogino</span></a>
+      <nav class="tools-nav" aria-label="Tools">
+        <a href="/pages/converters/png-to-jpeg.html" aria-current="page">png→jpg</a>
+        <a href="/pages/converters/png-stickers.html">sticker 512</a>
+        <a href="/pages/converters/png-icons.html">emoji 100</a>
+        <a href="/pages/converters/gif-to-webm.html">gif→webm</a>
+        <a href="/pages/converters/image-splitter.html">map splitter</a>
+        <a href="/pages/converters/grid-generator.html">25 mm grid</a>
+      </nav>
+      <button class="theme-btn" type="button">system</button>
+    </div>
+  </header>
 
-        <div class="drop-zone" id="dropZone">
-            <div class="drop-icon">📸</div>
-            <div class="drop-text">Drop your PNG file(s) here</div>
-            <div class="drop-subtext">or click to browse • Supports multiple files</div>
-        </div>
+  <main class="wrap">
+    <div class="intro">
+      <h1>PNG <span class="arrow">→</span> JPEG</h1>
+      <p>Converts PNG files to JPEG. Transparent areas are filled with the background colour. Drop several files and they come back as one zip.</p>
+      <div class="spec"><span>In <b>PNG · WebP</b></span><span>Out <b>JPEG</b></span><span>Runs <b>in your browser</b></span></div>
+    </div>
 
-        <input type="file" id="fileInput" accept=".png,image/png" multiple class="hidden">
-        
-        <div class="status" id="status"></div>
+    <div class="panel">
+      <div class="field">
+        <label for="quality">Quality</label>
+        <div class="row"><input type="range" id="quality" min="50" max="100" value="95"><output id="qualityOut" for="quality">95</output></div>
+        <p class="hint">90–95 looks the same as the original for photos. 100 makes files much larger.</p>
+      </div>
+      <div class="field">
+        <label for="bg">Background for transparent areas</label>
+        <div class="row"><input type="color" id="bg" value="#ffffff"><output id="bgOut" for="bg">#ffffff</output></div>
+      </div>
+    </div>
 
-        <!-- PWA Features Section -->
-        <section class="pwa-info-section">
-            <div class="pwa-info-card">
-                <div class="pwa-info-header">
-                    <h3>📱 Install as Mobile App</h3>
-                    <button class="pwa-info-btn" onclick="pwaInstallGuide.showGuide()">
-                        Learn How
-                    </button>
-                </div>
-                <p class="pwa-info-description">
-                    Get the best experience by installing our converter as an app on your phone or computer. 
-                    It works offline, loads faster, and feels just like a native app!
-                </p>
-                
-                <div class="pwa-benefits-grid">
-                    <div class="pwa-benefit">
-                        <span class="pwa-benefit-icon">⚡</span>
-                        <span>Lightning Fast</span>
-                    </div>
-                    <div class="pwa-benefit">
-                        <span class="pwa-benefit-icon">📱</span>
-                        <span>Works Offline</span>
-                    </div>
-                    <div class="pwa-benefit">
-                        <span class="pwa-benefit-icon">🚀</span>
-                        <span>App-like Feel</span>
-                    </div>
-                    <div class="pwa-benefit">
-                        <span class="pwa-benefit-icon">💾</span>
-                        <span>Less Storage</span>
-                    </div>
-                </div>
-            </div>
-        </section>
-    </div>        <!-- Scripts -->    <!-- Scripts -->
-    <script src="../../assets/scripts/core/navigation.js?v=202509292053"></script>
-    <script src="../../assets/scripts/core/logger.js?v=202509292036"></script>
-    <script src="../../assets/scripts/core/error-handler.js?v=202509292036"></script>
-    <script src="../../assets/scripts/core/performance-monitor.js?v=202509292036"></script>
-    <script src="../../assets/scripts/core/file-validator.js?v=202509292036"></script>
-    <script src="../../assets/scripts/core/theme-switcher.js?v=202509292036"></script>
-    <script src="../../assets/scripts/core/pwa-manager.js?v=202509292036"></script>
-    <script src="../../assets/scripts/core/pwa-install-guide.js?v=202509292036"></script>
-    <script src="../../assets/scripts/core/api_client.js?v=202509292036"></script>
-    <script src="../../assets/scripts/core/ui_helpers.js?v=202509292036"></script>
-    <script src="../../assets/scripts/converters/png-converter.js?v=202509292036"></script>
+    <div class="drop" id="drop" tabindex="0" role="button" aria-label="Drop PNG files here">
+      <div><strong>Drop PNG files here</strong><small>or click to choose · paste works too</small></div>
+      <input type="file" accept="image/png,image/webp,.png,.webp" multiple>
+    </div>
+    <p class="msg" id="msg"></p>
+    <div class="results" id="results"></div>
+  </main>
+
+  <footer class="site-foot">
+    <div class="wrap">
+      <a href="/">converter.piogino.ch</a>
+      <span>Runs in your browser · nothing is uploaded</span>
+    </div>
+  </footer>
+
+  <script src="/assets/js/core.js"></script>
+  <script src="/assets/js/jpeg.js"></script>
 </body>
 </html>

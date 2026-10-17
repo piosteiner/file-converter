@@ -1,291 +1,136 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <meta http-equiv="Pragma" content="no-cache">
-    <meta http-equiv="Expires" content="0">
-    <title>25mm Grid Generator - File Converter</title>
-    <meta name="description" content="Generate precise 25mm grids for battle maps and tabletop gaming. Perfect for Procreate and other digital art tools.">
-    <link rel="icon" type="image/png" sizes="32x32" href="../../assets/icons/favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="../../assets/icons/favicon-16x16.png">
-    <link rel="apple-touch-icon" sizes="180x180" href="../../assets/icons/apple-touch-icon.png">
-    <link rel="stylesheet" href="../../assets/styles/styles.css">
-    <link rel="stylesheet" href="../../assets/styles/components/color-picker.css">
-    <script>
-        // Prevent flash of light theme - must run immediately before page renders
-        (function() {
-            const theme = localStorage.getItem('preferred-theme') || 'system';
-            if (theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-                document.documentElement.setAttribute('data-theme', 'dark');
-            }
-        })();
-    </script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>25 mm grid · converter.piogino</title>
+  <meta name="description" content="Generate a transparent 25 mm square grid PNG at 150 DPI for battle maps in Procreate.">
+  <link rel="canonical" href="https://converter.piogino.ch/pages/converters/grid-generator.html">
+  <link rel="icon" href="/assets/icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/assets/icons/icon-192.png">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#f3f0e8" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#151412" media="(prefers-color-scheme: dark)">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="/assets/site.css">
+  <script>try{var t=localStorage.getItem('preferred-theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
 </head>
-<body class="converter-page grid-generator">
-    <div class="container">
-        <h1>⚏ 25mm Grid Generator</h1>
-        <p class="subtitle">Generate precise 25mm grids for battle maps, perfect for tabletop gaming and Procreate artwork</p>
+<body>
+  <header class="site-head">
+    <div class="wrap">
+      <a class="mark" href="/"><svg viewBox="0 0 18 18" aria-hidden="true"><rect x="1" y="1" width="7" height="7" fill="currentColor"/><rect x="10.75" y="1.75" width="5.5" height="5.5" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="1.75" y="10.75" width="5.5" height="5.5" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="10" y="10" width="7" height="7" fill="var(--accent)"/></svg>converter<span>.piogino</span></a>
+      <nav class="tools-nav" aria-label="Tools">
+        <a href="/pages/converters/png-to-jpeg.html">png→jpg</a>
+        <a href="/pages/converters/png-stickers.html">sticker 512</a>
+        <a href="/pages/converters/png-icons.html">emoji 100</a>
+        <a href="/pages/converters/gif-to-webm.html">gif→webm</a>
+        <a href="/pages/converters/image-splitter.html">map splitter</a>
+        <a href="/pages/converters/grid-generator.html" aria-current="page">25 mm grid</a>
+      </nav>
+      <button class="theme-btn" type="button">system</button>
+    </div>
+  </header>
 
-        <!-- Navigation will be dynamically loaded -->
-        <div id="navigation-placeholder"></div>
-
-        <!-- Grid Configuration Section -->
-        <section class="grid-config-section" id="gridConfigSection">
-            <h3>🎯 Grid Configuration</h3>
-            
-            <div class="config-grid">
-                <!-- Canvas Size Configuration -->
-                <div class="config-group">
-                    <h4>📐 Canvas Size</h4>
-                    
-                    <!-- Unit Selector -->
-                    <div class="unit-selector">
-                        <label class="radio-option">
-                            <input type="radio" name="unit" value="pixels" checked>
-                            <span>Pixels</span>
-                        </label>
-                        <label class="radio-option">
-                            <input type="radio" name="unit" value="mm">
-                            <span>Millimeters</span>
-                        </label>
-                    </div>
-                    
-                    <!-- Size Inputs -->
-                    <div class="size-inputs">
-                        <div class="input-group">
-                            <label for="canvasWidth">Width:</label>
-                            <input type="number" id="canvasWidth" value="3366" min="100" max="10000">
-                            <span class="unit-label" id="widthUnit">px</span>
-                        </div>
-                        <div class="input-group">
-                            <label for="canvasHeight">Height:</label>
-                            <input type="number" id="canvasHeight" value="4911" min="100" max="10000">
-                            <span class="unit-label" id="heightUnit">px</span>
-                        </div>
-                    </div>
-                    
-                    <!-- Preset Sizes -->
-                    <div class="preset-sizes">
-                        <h5>Quick Presets:</h5>
-                        <div class="preset-buttons">
-                            <button class="preset-btn" data-width="3366" data-height="3276">2×3 Battle Map</button>
-                            <button class="preset-btn" data-width="3366" data-height="4911">3×3 Battle Map</button>
-                            <button class="preset-btn" data-width="2480" data-height="3508">A4 Portrait</button>
-                            <button class="preset-btn" data-width="3508" data-height="2480">A4 Landscape</button>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Grid Appearance -->
-                <div class="config-group">
-                    <h4>🎨 Grid Appearance</h4>
-                    
-                    <div class="appearance-controls">
-                        <div class="input-group">
-                            <label for="gridColor">Grid Color:</label>
-                            <div id="gridColorPicker"></div>
-                        </div>
-                        
-                        <div class="input-group">
-                            <label for="lineThickness">Line Thickness:</label>
-                            <input type="range" id="lineThickness" min="1" max="10" value="2">
-                            <span class="range-value" id="thicknessValue">2px</span>
-                        </div>
-                        
-                        <div class="input-group">
-                            <label for="gridOpacity">Opacity:</label>
-                            <input type="range" id="gridOpacity" min="10" max="100" value="80">
-                            <span class="range-value" id="opacityValue">80%</span>
-                        </div>
-                    </div>
-                    
-                    <!-- Major Grid Lines -->
-                    <div class="major-grid-options">
-                        <label class="checkbox-option">
-                            <input type="checkbox" id="enableMajorGrid" checked>
-                            <span>Enable Major Grid Lines (every 5 squares)</span>
-                        </label>
-                        <div class="major-grid-controls" id="majorGridControls">
-                            <div class="input-group">
-                                <label for="majorLineThickness">Major Line Thickness:</label>
-                                <input type="range" id="majorLineThickness" min="2" max="15" value="4">
-                                <span class="range-value" id="majorThicknessValue">4px</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Generation Controls -->
-            <div class="generation-controls">
-                <button id="generateGridBtn" class="primary-btn">
-                    ⚏ Generate 25mm Grid
-                </button>
-                <button id="previewToggleBtn" class="secondary-btn">
-                    👁️ Toggle Preview
-                </button>
-            </div>
-        </section>
-
-        <!-- Preview Section -->
-        <section class="preview-section hidden-section" id="previewSection">
-            <h3>📋 Grid Preview</h3>
-            
-            <div class="preview-container">
-                <div class="canvas-container">
-                    <canvas id="gridCanvas"></canvas>
-                    <div class="canvas-info" id="canvasInfo"></div>
-                </div>
-                
-                <div class="preview-controls">
-                    <div class="zoom-controls">
-                        <button id="zoomOutBtn">🔍-</button>
-                        <span id="zoomLevel">100%</span>
-                        <button id="zoomInBtn">🔍+</button>
-                        <button id="fitToScreenBtn">📱 Fit Screen</button>
-                    </div>
-                    
-                    <div class="grid-info" id="gridInfo">
-                        <h4>Grid Information</h4>
-                        <p id="gridDimensions"></p>
-                        <p id="gridSquares"></p>
-                        <p id="physicalSize"></p>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Download Section -->
-        <section class="download-section hidden-section" id="downloadSection">
-            <h3>💾 Download Grid</h3>
-            
-            <div class="download-options">
-                <div class="download-info">
-                    <p><strong>📏 Grid Specifications:</strong></p>
-                    <ul id="downloadSpecs">
-                        <li>25mm grid spacing (147.6 pixels at 150 DPI)</li>
-                        <li>Transparent background</li>
-                        <li>Perfect for Procreate import</li>
-                        <li>Ready for battle map creation</li>
-                    </ul>
-                </div>
-                
-                <div class="download-buttons">
-                    <button id="downloadPNGBtn" class="download-btn">
-                        📁 Download PNG Grid
-                    </button>
-                    <button id="regenerateBtn" class="secondary-btn">
-                        🔄 Generate New Grid
-                    </button>
-                </div>
-            </div>
-        </section>
-
-        <!-- Instructions -->
-        <section class="instructions-section">
-            <h3>📚 How to Use</h3>
-            
-            <div class="instructions-grid">
-                <div class="instruction-card">
-                    <h4>1️⃣ Set Canvas Size</h4>
-                    <p>Enter your desired canvas dimensions in pixels or millimeters. Use the presets for common battle map sizes.</p>
-                </div>
-                
-                <div class="instruction-card">
-                    <h4>2️⃣ Customize Appearance</h4>
-                    <p>Choose grid color, line thickness, and opacity. Enable major grid lines for easier counting.</p>
-                </div>
-                
-                <div class="instruction-card">
-                    <h4>3️⃣ Generate & Preview</h4>
-                    <p>Click generate to create your grid. Use the preview to check the appearance and zoom to inspect details.</p>
-                </div>
-                
-                <div class="instruction-card">
-                    <h4>4️⃣ Download & Import</h4>
-                    <p>Download the PNG with transparent background. Import into Procreate or your preferred art software.</p>
-                </div>
-            </div>
-        </section>
-
-        <!-- Procreate Guide -->
-        <section class="procreate-guide">
-            <h3>🎨 Procreate Integration Guide</h3>
-            
-            <div class="guide-steps">
-                <div class="guide-section">
-                    <h4>📱 Importing into Procreate</h4>
-                    <ol>
-                        <li>Download the generated grid PNG</li>
-                        <li>Open Procreate and create a <strong>new canvas</strong></li>
-                        <li>Set canvas size to match your generated grid</li>
-                        <li>Set <strong>DPI to 150</strong> for perfect scale</li>
-                        <li>Add a new layer and <strong>import your grid</strong></li>
-                        <li>Set grid layer to 60-70% opacity</li>
-                        <li>Lock the grid layer to prevent accidental edits</li>
-                    </ol>
-                </div>
-                
-                <div class="guide-section">
-                    <h4>⚔️ Battle Map Creation Tips</h4>
-                    <ol>
-                        <li>Keep the grid on the <strong>top layer</strong> for reference</li>
-                        <li>Draw terrain and details on <strong>separate layers</strong> below</li>
-                        <li>Each grid square = <strong>5 feet</strong> in most RPG systems</li>
-                        <li>Use the <strong>Image Splitter tool</strong> after completion</li>
-                        <li>Print tiles at <strong>150 DPI</strong> for perfect 25mm scale</li>
-                    </ol>
-                </div>
-            </div>
-        </section>
-        <!-- PWA Features Section -->
-        <section class="pwa-info-section">
-            <div class="pwa-info-card">
-                <div class="pwa-info-header">
-                    <h3>📱 Install as Mobile App</h3>
-                    <button class="pwa-info-btn" onclick="pwaInstallGuide.showGuide()">
-                        Learn How
-                    </button>
-                </div>
-                <p class="pwa-info-description">
-                    Get the best experience by installing our converter as an app on your phone or computer. 
-                    It works offline, loads faster, and feels just like a native app!
-                </p>
-                
-                <div class="pwa-benefits-grid">
-                    <div class="pwa-benefit">
-                        <span class="pwa-benefit-icon">⚡</span>
-                        <span>Lightning Fast</span>
-                    </div>
-                    <div class="pwa-benefit">
-                        <span class="pwa-benefit-icon">📱</span>
-                        <span>Works Offline</span>
-                    </div>
-                    <div class="pwa-benefit">
-                        <span class="pwa-benefit-icon">🚀</span>
-                        <span>App-like Feel</span>
-                    </div>
-                    <div class="pwa-benefit">
-                        <span class="pwa-benefit-icon">💾</span>
-                        <span>Less Storage</span>
-                    </div>
-                </div>
-            </div>
-        </section>
+  <main class="wrap">
+    <div class="intro">
+      <h1>25 mm grid</h1>
+      <p>A transparent PNG of square grid lines at a fixed print scale, to lay over a canvas in Procreate. The file carries its DPI, so it imports at the right physical size.</p>
+      <div class="spec"><span>Out <b>PNG · transparent · DPI embedded</b></span><span>Runs <b>in your browser</b></span></div>
     </div>
 
-        <!-- Scripts -->
-    <script src="../../assets/scripts/core/navigation.js?v=202509292053"></script>
-    <script src="../../assets/scripts/core/color-picker.js?v=202509292053"></script>
-    <script src="../../assets/scripts/core/logger.js?v=202509292036"></script>
-    <script src="../../assets/scripts/core/error-handler.js?v=202509292036"></script>
-    <script src="../../assets/scripts/core/performance-monitor.js?v=202509292036"></script>
-    <script src="../../assets/scripts/core/file-validator.js?v=202509292036"></script>
-    <script src="../../assets/scripts/core/theme-switcher.js?v=202509292036"></script>
-    <script src="../../assets/scripts/core/pwa-manager.js?v=202509292036"></script>
-    <script src="../../assets/scripts/core/pwa-install-guide.js?v=202509292036"></script>
-    <script src="../../assets/scripts/converters/grid-generator.js?v=202509292036"></script>
+    <div class="two-col">
+      <div class="stage grid-stage"><canvas id="preview"></canvas></div>
+      <div>
+        <div class="panel stacked">
+          <div class="field">
+            <label for="preset">Canvas</label>
+            <select id="preset">
+              <option value="3366x3276">Map 3 × 2 pages — 3366 × 3276 px</option>
+              <option value="3366x4914" selected>Map 3 × 3 pages — 3366 × 4914 px</option>
+              <option value="1122x1638">One A4 page, inside border — 1122 × 1638 px</option>
+              <option value="1240x1754">A4 portrait — 1240 × 1754 px</option>
+              <option value="1754x1240">A4 landscape — 1754 × 1240 px</option>
+              <option value="custom">Custom size</option>
+            </select>
+          </div>
+          <div class="field" id="customSize" hidden>
+            <span class="label">Custom size</span>
+            <div class="row">
+              <input type="number" id="w" min="1" step="any" aria-label="Width">
+              <span class="value">×</span>
+              <input type="number" id="h" min="1" step="any" aria-label="Height">
+              <div class="seg">
+                <label><input type="radio" name="unit" value="px" checked><span>px</span></label>
+                <label><input type="radio" name="unit" value="mm"><span>mm</span></label>
+              </div>
+            </div>
+          </div>
+          <div class="row split">
+            <div class="field"><label for="square">Square (mm)</label><input type="number" id="square" min="2" max="200" step="any" value="25"></div>
+            <div class="field"><label for="dpi">DPI</label><input type="number" id="dpi" min="50" max="600" step="1" value="150"></div>
+          </div>
+          <div class="row split">
+            <div class="field"><label for="color">Line colour</label><input type="color" id="color" value="#000000"></div>
+            <div class="field">
+              <label for="opacity">Opacity</label>
+              <div class="row"><input type="range" id="opacity" min="10" max="100" value="80"><output id="opacityOut" for="opacity">80 %</output></div>
+            </div>
+          </div>
+          <div class="row split">
+            <div class="field">
+              <label for="line">Line width</label>
+              <div class="row"><input type="range" id="line" min="1" max="10" value="2"><output id="lineOut" for="line">2 px</output></div>
+            </div>
+            <div class="field">
+              <label for="every">Bold line every</label>
+              <select id="every">
+                <option value="0">never</option>
+                <option value="2">2 squares</option>
+                <option value="4">4 squares</option>
+                <option value="5" selected>5 squares</option>
+                <option value="10">10 squares</option>
+              </select>
+            </div>
+          </div>
+          <div class="field" id="boldField">
+            <label for="bold">Bold line width</label>
+            <div class="row"><input type="range" id="bold" min="2" max="16" value="4"><output id="boldOut" for="bold">4 px</output></div>
+          </div>
+        </div>
+        <dl class="facts" id="facts"></dl>
+        <div class="actions" style="margin-top:20px">
+          <button class="btn" type="button" id="download">Download PNG</button>
+        </div>
+        <p class="msg" id="msg"></p>
+      </div>
+    </div>
+
+    <div class="notes">
+      <div>
+        <h2>In Procreate</h2>
+        <ol>
+          <li>New canvas with the same pixel size and 150 DPI.</li>
+          <li>Actions → Add → Insert a file → this PNG.</li>
+          <li>Keep the grid as the top layer, lock it and lower its opacity.</li>
+        </ol>
+      </div>
+      <div>
+        <h2>Scale</h2>
+        <p>At 150 DPI a 25 mm square is 147.6 px. Line positions are rounded per line rather than per square, so the error never adds up across the map.</p>
+      </div>
+    </div>
+  </main>
+
+  <footer class="site-foot">
+    <div class="wrap">
+      <a href="/">converter.piogino.ch</a>
+      <span>Runs in your browser · nothing is uploaded</span>
+    </div>
+  </footer>
+
+  <script src="/assets/js/core.js"></script>
+  <script src="/assets/js/grid.js"></script>
 </body>
 </html>

@@ -1,97 +1,72 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <meta http-equiv="Pragma" content="no-cache">
-    <meta http-equiv="Expires" content="0">
-    <title>Image → 512×512 PNG Converter</title>
-    <meta name="description" content="Free online image to 512×512 PNG converter. Converts any image to PNG with longest side 512px, preserving aspect ratio.">
-    <meta name="keywords" content="PNG converter, image converter, 512px, aspect ratio, sticker maker">
-    <link rel="canonical" href="https://converter.piogino.ch/html/png-stickers.html">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏷️</text></svg>">
-    <link rel="stylesheet" href="../../assets/styles/styles.css">
-    <script>
-        // Prevent flash of light theme - must run immediately before page renders
-        (function() {
-            const theme = localStorage.getItem('preferred-theme') || 'system';
-            if (theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-                document.documentElement.setAttribute('data-theme', 'dark');
-            }
-        })();
-    </script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sticker 512 · converter.piogino</title>
+  <meta name="description" content="Resize images so the longest side is exactly 512 px, as PNG for Telegram stickers.">
+  <link rel="canonical" href="https://converter.piogino.ch/pages/converters/png-stickers.html">
+  <link rel="icon" href="/assets/icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/assets/icons/icon-192.png">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#f3f0e8" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#151412" media="(prefers-color-scheme: dark)">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="/assets/site.css">
+  <script>try{var t=localStorage.getItem('preferred-theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
 </head>
-<body class="converter-page png-stickers">
-    <div class="container">
-        <h1>🏷️ Image → 512×512 PNG Converter</h1>
-        <p class="subtitle">
-            Convert any image to PNG format (exactly 512px longest side, preserves aspect ratio)
-            <br><br>
-            This tool was originally intended for the creation of custom emojis in the Telegram messaging app.
-            <br><br>
-            <strong>📖 Resources:</strong> <a href="https://core.telegram.org/stickers" target="_blank" rel="noopener">Telegram Stickers Guide</a>
-        </p>
-        
-        <!-- Navigation will be dynamically loaded -->
-        <div id="navigation-placeholder"></div>
+<body data-mode="sticker">
+  <header class="site-head">
+    <div class="wrap">
+      <a class="mark" href="/"><svg viewBox="0 0 18 18" aria-hidden="true"><rect x="1" y="1" width="7" height="7" fill="currentColor"/><rect x="10.75" y="1.75" width="5.5" height="5.5" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="1.75" y="10.75" width="5.5" height="5.5" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="10" y="10" width="7" height="7" fill="var(--accent)"/></svg>converter<span>.piogino</span></a>
+      <nav class="tools-nav" aria-label="Tools">
+        <a href="/pages/converters/png-to-jpeg.html">png→jpg</a>
+        <a href="/pages/converters/png-stickers.html" aria-current="page">sticker 512</a>
+        <a href="/pages/converters/png-icons.html">emoji 100</a>
+        <a href="/pages/converters/gif-to-webm.html">gif→webm</a>
+        <a href="/pages/converters/image-splitter.html">map splitter</a>
+        <a href="/pages/converters/grid-generator.html">25 mm grid</a>
+      </nav>
+      <button class="theme-btn" type="button">system</button>
+    </div>
+  </header>
 
-        <div class="drop-zone" id="dropZone">
-            <div class="drop-icon">🏷️</div>
-            <div class="drop-text">Drop your image file(s) here</div>
-            <div class="drop-subtext">or click to browse • Auto-resizes to 512px • Supports multiple files</div>
-        </div>
+  <main class="wrap">
+    <div class="intro">
+      <h1>Sticker 512</h1>
+      <p>Scales images so the longest side is exactly 512 px and saves them as PNG, transparency kept. That is what Telegram's @Stickers bot expects for static stickers.</p>
+      <div class="spec"><span>In <b>any image</b></span><span>Out <b>PNG · 512 px longest side</b></span><span>Runs <b>in your browser</b></span></div>
+    </div>
 
-        <input type="file" id="fileInput" accept="image/*" multiple class="hidden">
-        
-        <div class="status" id="status"></div>
+    <div class="drop" id="drop" tabindex="0" role="button" aria-label="Drop images here">
+      <div><strong>Drop images here</strong><small>or click to choose · paste works too</small></div>
+      <input type="file" accept="image/*" multiple>
+    </div>
+    <p class="msg" id="msg"></p>
+    <div class="results" id="results"></div>
 
-        <!-- PWA Features Section -->
-        <section class="pwa-info-section">
-            <div class="pwa-info-card">
-                <div class="pwa-info-header">
-                    <h3>📱 Install as Mobile App</h3>
-                    <button class="pwa-info-btn" onclick="pwaInstallGuide.showGuide()">
-                        Learn How
-                    </button>
-                </div>
-                <p class="pwa-info-description">
-                    Get the best experience by installing our converter as an app on your phone or computer. 
-                    It works offline, loads faster, and feels just like a native app!
-                </p>
-                
-                <div class="pwa-benefits-grid">
-                    <div class="pwa-benefit">
-                        <span class="pwa-benefit-icon">⚡</span>
-                        <span>Lightning Fast</span>
-                    </div>
-                    <div class="pwa-benefit">
-                        <span class="pwa-benefit-icon">📱</span>
-                        <span>Works Offline</span>
-                    </div>
-                    <div class="pwa-benefit">
-                        <span class="pwa-benefit-icon">🚀</span>
-                        <span>App-like Feel</span>
-                    </div>
-                    <div class="pwa-benefit">
-                        <span class="pwa-benefit-icon">💾</span>
-                        <span>Less Storage</span>
-                    </div>
-                </div>
-            </div>
-        </section>
-    </div>        <!-- Scripts -->
-    <!-- Scripts -->
-    <script src="../../assets/scripts/core/navigation.js?v=202509292053"></script>
-    <script src="../../assets/scripts/core/logger.js?v=202509292036"></script>
-    <script src="../../assets/scripts/core/error-handler.js?v=202509292036"></script>
-    <script src="../../assets/scripts/core/performance-monitor.js?v=202509292036"></script>
-    <script src="../../assets/scripts/core/file-validator.js?v=202509292036"></script>
-    <script src="../../assets/scripts/core/theme-switcher.js?v=202509292036"></script>
-    <script src="../../assets/scripts/core/pwa-manager.js?v=202509292036"></script>
-    <script src="../../assets/scripts/core/pwa-install-guide.js?v=202509292036"></script>
-    <script src="../../assets/scripts/core/api_client.js?v=202509292036"></script>
-    <script src="../../assets/scripts/core/ui_helpers.js?v=202509292036"></script>
-    <script src="../../assets/scripts/converters/png-stickers.js?v=202509292036"></script>
+    <div class="notes">
+      <div>
+        <h2>Telegram limits</h2>
+        <p>One side 512 px, the other 512 px or less, at most 512 KB. Files over the size limit are marked in the list.</p>
+      </div>
+      <div>
+        <h2>Next step</h2>
+        <p>Send the PNG files to <a href="https://t.me/stickers" rel="noopener">@Stickers</a>. Details in the <a href="https://core.telegram.org/stickers" rel="noopener">Telegram sticker guide</a>.</p>
+      </div>
+    </div>
+  </main>
+
+  <footer class="site-foot">
+    <div class="wrap">
+      <a href="/">converter.piogino.ch</a>
+      <span>Runs in your browser · nothing is uploaded</span>
+    </div>
+  </footer>
+
+  <script src="/assets/js/core.js"></script>
+  <script src="/assets/js/resize.js"></script>
 </body>
 </html>
