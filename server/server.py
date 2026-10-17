@@ -20,6 +20,7 @@ import os
 import subprocess
 from pathlib import Path
 import uuid
+import json
 from werkzeug.utils import secure_filename
 import threading
 
@@ -174,6 +175,41 @@ def index():
     </body></html>
     """
 
+# ---- Conversion progress ----
+# The browser sends a random job id with a conversion and polls /api/progress/<job>.
+# Kept in a small file, not in memory: gunicorn runs several workers and the poll may hit another one.
+# cleanup_old_files() removes stale progress files with the uploads.
+
+def _progress_path(job):
+    try:
+        return os.path.join(UPLOAD_FOLDER, f"progress_{uuid.UUID(job)}.json")
+    except (ValueError, TypeError, AttributeError):
+        return None
+
+def progress_reporter(job):
+    """Return a progress(attempt, attempts, fraction) callback for convert_gif_to_webm, or None."""
+    path = _progress_path(job)
+    if not path:
+        return None
+    def report(attempt, attempts, fraction):
+        tmp = f"{path}.tmp"
+        with open(tmp, 'w') as f:
+            json.dump({'stage': 'encoding', 'attempt': attempt, 'attempts': attempts,
+                       'percent': round(fraction * 100)}, f)
+        os.replace(tmp, path)
+    return report
+
+@app.route('/api/progress/<job>', methods=['GET', 'OPTIONS'])
+def conversion_progress(job):
+    path = _progress_path(job)
+    if not path:
+        return jsonify({'error': 'Invalid job id'}), 400
+    try:
+        with open(path) as f:
+            return jsonify(json.load(f))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return jsonify({'stage': 'waiting'})
+
 # ---- Health ----
 @app.route('/api/health', methods=['GET', 'OPTIONS'])
 def health_check():
@@ -225,7 +261,8 @@ def convert_gif_to_webm_preview():
             input_path=in_path,
             output_path=out_path,
             mode='preview',
-            max_size_kb=2048  # higher cap for preview
+            max_size_kb=2048,  # higher cap for preview
+            progress=progress_reporter(request.form.get('job'))
         )
 
         # Clean input
@@ -550,7 +587,8 @@ def convert_gif():
             input_path=input_path,
             output_path=output_path,
             mode=mode,
-            max_size_kb=max_size_kb if mode != 'preview' else 2048
+            max_size_kb=max_size_kb if mode != 'preview' else 2048,
+            progress=progress_reporter(request.form.get('job'))
         )
 
         if ok and os.path.exists(output_path):

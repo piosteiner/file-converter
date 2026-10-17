@@ -211,15 +211,27 @@
   ui.dpi.addEventListener('input', () => { if (img) drawPreview(); });
   window.addEventListener('resize', () => { if (img) drawPreview(); });
 
+  let exportUrl = null; // the last export, kept for its Save link
+
   ui.exportBtn.addEventListener('click', async () => {
     if (!img) return;
     const L = layout();
+    const asPdf = opt('out') === 'pdf';
+    // A PDF opens in a new tab so this page stays put (Safari and some PDF settings would otherwise
+    // replace it). The tab must be opened now, inside the click, or it counts as a popup.
+    const tab = asPdf ? window.open('', '_blank') : null;
+    if (tab) tab.document.title = 'Creating the PDF…';
     ui.exportBtn.disabled = true;
     try {
-      const { blob, filename } = opt('out') === 'pdf' ? await exportPdf(L) : await exportPng(L);
-      download(blob, filename);
-      say(ui.exportMsg, `Saved ${filename} · ${formatBytes(blob.size)}`, 'ok');
+      const { blob, filename } = asPdf ? await exportPdf(L) : await exportPng(L);
+      if (exportUrl) URL.revokeObjectURL(exportUrl);
+      const url = exportUrl = URL.createObjectURL(blob);
+      if (tab && !tab.closed) tab.location.href = url;
+      else download(blob, filename);
+      say(ui.exportMsg, `${tab ? 'Opened' : 'Saved'} ${filename} · ${formatBytes(blob.size)} · `, 'ok');
+      ui.exportMsg.append(el('a', { href: url, download: filename }, 'Save'));
     } catch (err) {
+      if (tab) tab.close();
       say(ui.exportMsg, err.message, 'bad');
     } finally {
       ui.exportBtn.disabled = false;

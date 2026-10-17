@@ -5,6 +5,7 @@ Converts GIF files to WebM format meeting strict requirements for messaging plat
 """
 
 import subprocess
+import tempfile
 import sys
 import os
 import argparse
@@ -59,7 +60,7 @@ def calculate_scale_filter(width, height, mode='sticker'):
         # Taller than wide - make height 512
         return "scale=-2:512"
 
-def convert_gif_to_webm(input_path, output_path=None, mode='sticker', max_size_kb=256):
+def convert_gif_to_webm(input_path, output_path=None, mode='sticker', max_size_kb=256, progress=None):
     """
     Convert GIF to WebM meeting strict requirements.
     
@@ -68,6 +69,7 @@ def convert_gif_to_webm(input_path, output_path=None, mode='sticker', max_size_k
         output_path (str, optional): Path for output WebM file
         mode (str): 'sticker' or 'emoji'
         max_size_kb (int): Maximum file size in KB
+        progress (callable, optional): progress(attempt, attempts, fraction), called while encoding
     
     Returns:
         bool: True if conversion successful, False otherwise
@@ -133,8 +135,10 @@ def convert_gif_to_webm(input_path, output_path=None, mode='sticker', max_size_k
     max_size_bytes = max_size_kb * 1024
     crf_values = [35, 40, 45, 50, 55, 60, 63]  # Start with reasonable quality
     
-    for crf in crf_values:
+    for attempt, crf in enumerate(crf_values, 1):
         print(f"Trying CRF {crf}...")
+        if progress:
+            progress(attempt, len(crf_values), 0.0)
         
         # Build FFmpeg command
         cmd = [
@@ -148,18 +152,29 @@ def convert_gif_to_webm(input_path, output_path=None, mode='sticker', max_size_k
             '-pix_fmt', 'yuva420p',         # Support transparency
             '-vf', video_filter,            # Video filters
             '-movflags', '+faststart',      # Optimize for streaming
+            *(['-g', '10'] if mode == 'preview' else []),  # Frequent keyframes: smooth seeking (ping-pong preview)
+            '-progress', 'pipe:1', '-nostats',  # Machine-readable progress on stdout
             '-f', 'webm',                   # Force WebM format
             '-y',                           # Overwrite output
             str(output_path)
         ]
         
         try:
-            # Run conversion
-            result = subprocess.run(cmd, capture_output=True, text=True)
-            
-            if result.returncode != 0:
-                print(f"FFmpeg error: {result.stderr}")
-                continue
+            # Run conversion, reporting how far ffmpeg is (out_time_us of duration_limit)
+            with tempfile.TemporaryFile(mode='w+') as err:
+                proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=err, text=True)
+                for line in proc.stdout:
+                    if progress and line.startswith('out_time_us=') and duration_limit > 0:
+                        try:
+                            done = int(line.split('=', 1)[1]) / 1_000_000 / duration_limit
+                        except ValueError:
+                            continue
+                        progress(attempt, len(crf_values), max(0.0, min(1.0, done)))
+                returncode = proc.wait()
+                if returncode != 0:
+                    err.seek(0)
+                    print(f"FFmpeg error: {err.read()}")
+                    continue
             
             # Check file size
             if os.path.exists(output_path):

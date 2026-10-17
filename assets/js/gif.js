@@ -23,24 +23,88 @@
 
   // ---------- server ----------
 
-  async function request(path, { body, timeout = 180_000, as = 'json' } = {}) {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), timeout);
-    try {
-      const res = await fetch(API + path, { method: body ? 'POST' : 'GET', body, signal: ctrl.signal, cache: 'no-store' });
-      if (!res.ok) {
-        let detail = '';
-        try { detail = (await res.json()).error || ''; } catch { /* not JSON */ }
-        throw new Error(detail || `Server answered ${res.status}.`);
+  // XMLHttpRequest rather than fetch: it reports upload and download progress.
+  // onProgress(phase, fraction): 'upload' 0…1, 'server' once the upload is done, 'download' 0…1.
+  function request(path, { body, timeout = 180_000, as = 'json', onProgress } = {}) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open(body ? 'POST' : 'GET', API + path);
+      xhr.responseType = as === 'blob' ? 'blob' : 'text';
+      xhr.timeout = timeout;
+      if (onProgress) {
+        if (body) {
+          xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress('upload', e.loaded / e.total); };
+          xhr.upload.onload = () => onProgress('server');
+        }
+        xhr.onprogress = (e) => { if (e.lengthComputable && as === 'blob') onProgress('download', e.loaded / e.total); };
       }
-      return as === 'blob' ? await res.blob() : await res.json();
-    } catch (err) {
-      if (err.name === 'AbortError') throw new Error('The server took too long to answer.');
-      if (err instanceof TypeError) throw new Error('Could not reach the server. Check your connection.');
-      throw err;
-    } finally {
-      clearTimeout(timer);
-    }
+      xhr.onload = async () => {
+        if (xhr.status < 200 || xhr.status >= 300) {
+          let detail = '';
+          try { detail = JSON.parse(as === 'blob' ? await xhr.response.text() : xhr.responseText).error || ''; } catch { /* not JSON */ }
+          reject(new Error(detail || `Server answered ${xhr.status}.`));
+        } else if (as === 'blob') {
+          resolve(xhr.response);
+        } else {
+          try { resolve(JSON.parse(xhr.responseText)); } catch { reject(new Error('The server sent an unexpected answer.')); }
+        }
+      };
+      xhr.ontimeout = () => reject(new Error('The server took too long to answer.'));
+      xhr.onerror = () => reject(new Error('Could not reach the server. Check your connection.'));
+      xhr.send(body || null);
+    });
+  }
+
+  // Progress of one server job in the message line: upload %, encoding % (polled from the server), download %.
+  // The server tries stricter quality settings until the file fits the size limit, so encoding may run more than once.
+  function tracker(label, { verb = 'Converting', poll = true } = {}) {
+    const job = crypto.randomUUID();
+    let stage = 'upload';
+    let pct = 0;
+    let attempt = 1;
+    let timer = 0;
+    let stopped = false;
+    const render = () => {
+      const what = stage === 'upload' ? `Uploading ${pct} %`
+        : stage === 'encoding' ? `${verb} ${pct} %${attempt > 1 ? ` · try ${attempt}, the last result was over the size limit` : ''}`
+          : stage === 'download' ? `Downloading ${pct} %`
+            : `${verb}…`;
+      say(ui.msg, label ? `${label} · ${what}` : what, 'busy');
+    };
+    const check = async () => {
+      if (stopped) return;
+      try {
+        const p = await request(`/api/progress/${job}`, { timeout: 5000 });
+        if (!stopped && p.stage === 'encoding' && (stage === 'server' || stage === 'encoding')) {
+          stage = 'encoding';
+          pct = p.percent;
+          attempt = p.attempt;
+          render();
+        }
+      } catch { /* a missed poll is fine */ }
+      if (!stopped) timer = setTimeout(check, 500);
+    };
+    render();
+    return {
+      job,
+      onProgress(phase, fraction) {
+        if (stopped) return;
+        if (phase === 'upload') {
+          stage = 'upload';
+          pct = Math.round(fraction * 100);
+        } else if (phase === 'server') {
+          if (stage !== 'upload') return;
+          stage = 'server';
+          if (poll) check();
+        } else {
+          clearTimeout(timer);
+          stage = 'download';
+          pct = Math.round(fraction * 100);
+        }
+        render();
+      },
+      stop() { stopped = true; clearTimeout(timer); },
+    };
   }
 
   async function checkServer() {
@@ -61,24 +125,35 @@
     } }, 'Try again'));
   }
 
-  async function toWebm(blob, filename) {
-    const form = new FormData();
-    form.append('file', blob, filename);
-    form.append('max_size', ui.maxSize.value);
-    form.append('mode', mode());
-    const info = await request('/api/convert', { body: form });
-    if (!info.success) throw new Error(info.error || 'Conversion failed.');
-    const webm = await request(`/api/download/${encodeURIComponent(info.download_id)}`, { as: 'blob', timeout: 60_000 });
-    return { webm, info };
+  async function toWebm(blob, filename, label = '') {
+    const t = tracker(label);
+    try {
+      const form = new FormData();
+      form.append('file', blob, filename);
+      form.append('max_size', ui.maxSize.value);
+      form.append('mode', mode());
+      form.append('job', t.job);
+      const info = await request('/api/convert', { body: form, onProgress: t.onProgress });
+      if (!info.success) throw new Error(info.error || 'Conversion failed.');
+      const webm = await request(`/api/download/${encodeURIComponent(info.download_id)}`, { as: 'blob', timeout: 60_000, onProgress: t.onProgress });
+      return { webm, info };
+    } finally {
+      t.stop();
+    }
   }
 
   async function trimGif(file, start, end, pingpong) {
-    const form = new FormData();
-    form.append('file', file, file.name);
-    form.append('start', start.toFixed(3));
-    form.append('end', end.toFixed(3));
-    if (pingpong) form.append('pingpong', 'true');
-    return request('/edit/trim-gif', { body: form, as: 'blob' });
+    const t = tracker('', { verb: 'Trimming', poll: false });
+    try {
+      const form = new FormData();
+      form.append('file', file, file.name);
+      form.append('start', start.toFixed(3));
+      form.append('end', end.toFixed(3));
+      if (pingpong) form.append('pingpong', 'true');
+      return await request('/edit/trim-gif', { body: form, as: 'blob', onProgress: t.onProgress });
+    } finally {
+      t.stop();
+    }
   }
 
   const webmName = (file) => `${stem(file.name)}${mode() === 'emoji' ? '_emoji' : ''}.webm`;
@@ -102,9 +177,8 @@
     ui.drop.classList.add('busy');
     let ok = 0;
     for (const [i, file] of gifs.entries()) {
-      say(ui.msg, `Converting ${i + 1} of ${gifs.length} — ${file.name}`, 'busy');
       try {
-        const { webm, info } = await toWebm(file, file.name);
+        const { webm, info } = await toWebm(file, file.name, `${i + 1} of ${gifs.length} — ${file.name}`);
         results.add({ name: webmName(file), blob: webm, meta: webmMeta(info, webm) });
         ok++;
       } catch (err) {
@@ -119,7 +193,10 @@
 
   // ---------- trimmer ----------
 
-  const ed = { file: null, duration: 0, start: 0, end: 0, videoUrl: null, stillUrl: null, canSeek: false, raf: 0 };
+  const ed = {
+    file: null, duration: 0, start: 0, end: 0, videoUrl: null, stillUrl: null, canSeek: false, raf: 0,
+    playing: true, reversing: false, last: 0,
+  };
 
   // Total play time of a GIF from its frame delays, without decoding images.
   async function gifDuration(file) {
@@ -156,7 +233,8 @@
     ui.video.load();
     if (ed.videoUrl) URL.revokeObjectURL(ed.videoUrl);
     if (ed.stillUrl) URL.revokeObjectURL(ed.stillUrl);
-    Object.assign(ed, { file: null, duration: 0, videoUrl: null, stillUrl: null, canSeek: false });
+    Object.assign(ed, { file: null, duration: 0, videoUrl: null, stillUrl: null, canSeek: false, playing: true, reversing: false, last: 0 });
+    ui.play.textContent = 'Pause';
     ui.editor.hidden = true;
     ui.drop.hidden = false;
   }
@@ -171,14 +249,16 @@
     ui.video.hidden = true;
     ui.still.hidden = true;
     setBusy(true);
-    say(ui.msg, 'Preparing the preview…', 'busy');
 
     const localDuration = await gifDuration(file).catch(() => 0);
     let previewError = null;
+    const t = tracker('Preparing the preview', { verb: 'Encoding' });
     try {
       const form = new FormData();
       form.append('file', file, file.name);
-      const webm = await request('/convert/gif-to-webm', { body: form, as: 'blob', timeout: 120_000 });
+      form.append('job', t.job);
+      const webm = await request('/convert/gif-to-webm', { body: form, as: 'blob', timeout: 120_000, onProgress: t.onProgress });
+      t.stop();
       if (ed.file !== file) return; // closed meanwhile
       ed.videoUrl = URL.createObjectURL(webm);
       await new Promise((resolve, reject) => {
@@ -190,6 +270,8 @@
       ed.canSeek = Number.isFinite(ui.video.duration) && ui.video.duration > 0;
     } catch (err) {
       previewError = err;
+    } finally {
+      t.stop();
     }
     if (ed.file !== file) return;
 
@@ -250,14 +332,40 @@
     if (seek && ed.canSeek && (ui.video.currentTime < start || ui.video.currentTime > end)) ui.video.currentTime = start;
   }
 
-  // Keep the preview looping inside the selection.
-  function tick() {
+  // Keep the preview looping inside the selection. With ping-pong it plays forward, then backwards:
+  // browsers can't play video in reverse, so the backward half steps back by seeking each frame.
+  function tick(now = performance.now()) {
     cancelAnimationFrame(ed.raf);
     if (!ed.file) return;
+    const dt = Math.min(0.1, (now - (ed.last || now)) / 1000);
+    ed.last = now;
     if (ed.canSeek) {
-      const t = ui.video.currentTime;
-      if (!ui.video.paused && (t >= ed.end - 0.02 || t < ed.start - 0.05)) ui.video.currentTime = ed.start;
-      ui.head.style.left = `${(t / ed.duration) * 100}%`;
+      const v = ui.video;
+      if (!ui.pingpong.checked) ed.reversing = false;
+      if (!ed.playing) {
+        if (!v.paused) v.pause();
+      } else if (ed.reversing) {
+        if (!v.paused) v.pause();
+        if (!v.seeking) {
+          const t = v.currentTime - dt;
+          if (t <= ed.start) {
+            ed.reversing = false;
+            v.currentTime = ed.start;
+            v.play().catch(() => {});
+          } else {
+            v.currentTime = t;
+          }
+        }
+      } else {
+        // The end is checked before resuming: at the very end of the clip the video stops by itself (no loop attribute).
+        const t = v.currentTime;
+        if (t < ed.start - 0.05) v.currentTime = ed.start;
+        else if (t >= ed.end - 0.02) {
+          if (ui.pingpong.checked) { ed.reversing = true; v.pause(); v.currentTime = ed.end; }
+          else v.currentTime = ed.start;
+        } else if (v.paused && !v.seeking) v.play().catch(() => {});
+      }
+      ui.head.style.left = `${(v.currentTime / ed.duration) * 100}%`;
     }
     ed.raf = requestAnimationFrame(tick);
   }
@@ -320,11 +428,11 @@
     setRange(0, p === 'all' ? ed.duration : Number(p));
   }));
 
+  // ed.playing is what the button asks for; tick() starts, pauses and reverses the video to match.
   ui.play.addEventListener('click', () => {
-    if (ui.video.paused) ui.video.play(); else ui.video.pause();
+    ed.playing = !ed.playing;
+    ui.play.textContent = ed.playing ? 'Pause' : 'Play';
   });
-  ui.video.addEventListener('play', () => { ui.play.textContent = 'Pause'; });
-  ui.video.addEventListener('pause', () => { ui.play.textContent = 'Play'; });
   ui.edClose.addEventListener('click', () => { closeEditor(); say(ui.msg, ''); });
 
   const needsTrim = () => ed.start > 0.01 || ed.end < ed.duration - 0.01 || ui.pingpong.checked;
