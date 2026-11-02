@@ -548,6 +548,16 @@ input[type="color"] {
 .crop-info { flex: 1 1 260px; font-family: var(--mono); }
 .crop-info.warn { color: var(--accent); }
 .layout-controls { margin-top: 4px; }
+.hint.keys { margin-top: 6px; line-height: 1.9; }
+kbd {
+  font: 500 11px/1 var(--mono);
+  border: 1px solid var(--rule);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  padding: 2px 5px;
+  color: var(--ink);
+  white-space: nowrap;
+}
 .layout-range input[type="range"] { width: 140px; }
 .layout-range .label output { color: var(--ink); margin-left: 4px; }
 

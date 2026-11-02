@@ -141,6 +141,7 @@ function createTrimmer({ controls = () => [], initialEnd = (d) => d, lengthHint 
   const ed = {
     file: null, duration: 0, start: 0, end: 0, videoUrl: null, stillUrl: null, canSeek: false, raf: 0,
     playing: true, reversing: false, last: 0, source: null,
+    holding: false, holdTimer: 0, // holding: paused on the frame at a selection edge while it is being moved
   };
   const pingpong = () => Boolean(ui.pingpong?.checked);
 
@@ -237,10 +238,20 @@ function createTrimmer({ controls = () => [], initialEnd = (d) => d, lengthHint 
     }
     if (ed.file !== file) return false;
 
+    let muted = false;
     if (ed.canSeek) {
       ed.duration = ui.video.duration;
       ui.video.hidden = false;
-      ui.video.play().catch(() => {});
+      // Sound on if the browser lets it autoplay (it does once the person has clicked on the page), else muted.
+      setSound(audio);
+      try {
+        await ui.video.play();
+      } catch {
+        muted = audio;
+        setSound(false);
+        ui.video.play().catch(() => {});
+      }
+      if (ed.file !== file) return false;
     } else {
       // No scrubbing, but trimming by numbers and handles still works.
       ed.duration = localDuration;
@@ -257,6 +268,8 @@ function createTrimmer({ controls = () => [], initialEnd = (d) => d, lengthHint 
       ed.duration = 3;
     } else if (previewError) {
       say(ui.msg, `${still ? 'Showing the GIF itself' : 'No preview'} — ${previewError.message} Trim with the handles or numbers.`, '');
+    } else if (muted) {
+      say(ui.msg, 'The browser started the preview muted. Press Sound or M to hear it.', '');
     } else {
       say(ui.msg, '');
     }
@@ -306,7 +319,7 @@ function createTrimmer({ controls = () => [], initialEnd = (d) => d, lengthHint 
     if (ed.canSeek) {
       const v = ui.video;
       if (!pingpong()) ed.reversing = false;
-      if (!ed.playing) {
+      if (!ed.playing || ed.holding) {
         if (!v.paused) v.pause();
       } else if (ed.reversing) {
         if (!v.paused) v.pause();
@@ -349,15 +362,18 @@ function createTrimmer({ controls = () => [], initialEnd = (d) => d, lengthHint 
     const e0 = ed.end;
     ui.track.setPointerCapture(e.pointerId);
     if (target === 'move') ui.sel.classList.add('dragging');
+    if (target !== 'seek') hold();
 
+    // While an edge moves, the preview stands still on the clip's first frame (start, move) or last frame (end).
     const move = (ev) => {
       const t = timeAt(ev.clientX);
-      if (target === 'start') { setRange(t, ed.end, { seek: false }); if (ed.canSeek) ui.video.currentTime = ed.start; }
-      else if (target === 'end') { setRange(ed.start, t, { seek: false }); if (ed.canSeek) ui.video.currentTime = Math.max(ed.start, ed.end - 0.05); }
+      if (target === 'start') { setRange(t, ed.end, { seek: false }); showEdge('start'); }
+      else if (target === 'end') { setRange(ed.start, t, { seek: false }); showEdge('end'); }
       else if (target === 'move') {
         const len = e0 - s0;
         const s = Math.max(0, Math.min(ed.duration - len, s0 + (t - t0)));
-        setRange(s, s + len);
+        setRange(s, s + len, { seek: false });
+        showEdge('start');
       } else if (ed.canSeek) {
         ui.video.currentTime = Math.max(ed.start, Math.min(ed.end, t));
       }
@@ -367,7 +383,7 @@ function createTrimmer({ controls = () => [], initialEnd = (d) => d, lengthHint 
       ui.track.removeEventListener('pointermove', move);
       ui.track.removeEventListener('pointerup', up);
       ui.track.removeEventListener('pointercancel', up);
-      if (ed.canSeek && target !== 'seek') ui.video.currentTime = ed.start;
+      if (target !== 'seek') release();
     };
     ui.track.addEventListener('pointermove', move);
     ui.track.addEventListener('pointerup', up);
@@ -380,12 +396,34 @@ function createTrimmer({ controls = () => [], initialEnd = (d) => d, lengthHint 
     const delta = e.key === 'ArrowLeft' || e.key === 'ArrowDown' ? -step : e.key === 'ArrowRight' || e.key === 'ArrowUp' ? step : 0;
     if (!delta) return;
     e.preventDefault();
-    if (which === 'start') setRange(ed.start + delta, ed.end);
-    else setRange(ed.start, ed.end + delta);
+    if (which === 'start') setRange(ed.start + delta, ed.end, { seek: false });
+    else setRange(ed.start, ed.end + delta, { seek: false });
+    peek(which);
   }));
 
-  ui.start.addEventListener('change', () => setRange(Number(ui.start.value) || 0, ed.end));
-  ui.end.addEventListener('change', () => setRange(ed.start, Number(ui.end.value) || ed.duration));
+  ui.start.addEventListener('change', () => { setRange(Number(ui.start.value) || 0, ed.end, { seek: false }); peek('start'); });
+  ui.end.addEventListener('change', () => { setRange(ed.start, Number(ui.end.value) || ed.duration, { seek: false }); peek('end'); });
+
+  // The last frame of the clip is the one just before its end.
+  function showEdge(which) {
+    if (ed.canSeek) ui.video.currentTime = which === 'end' ? Math.max(ed.start, ed.end - 0.001) : ed.start;
+  }
+  function hold() {
+    clearTimeout(ed.holdTimer);
+    ed.holding = true;
+    ed.reversing = false;
+  }
+  function release() {
+    clearTimeout(ed.holdTimer);
+    ed.holding = false;
+    if (ed.canSeek) ui.video.currentTime = ed.start;
+  }
+  // Keyboard and number edits: show the edge for a moment, then play on.
+  function peek(which) {
+    hold();
+    showEdge(which);
+    ed.holdTimer = setTimeout(release, 1200);
+  }
   ui.pingpong?.addEventListener('change', () => setRange(ed.start, ed.end, { seek: false }));
   $$('[data-preset]').forEach((b) => b.addEventListener('click', () => {
     const p = b.dataset.preset;
@@ -396,6 +434,7 @@ function createTrimmer({ controls = () => [], initialEnd = (d) => d, lengthHint 
 
   function setSound(on) {
     ui.video.muted = !on;
+    if (on && ui.msg.textContent.startsWith('The browser started the preview muted')) say(ui.msg, '');
     if (ui.sound) {
       ui.sound.textContent = on ? 'Sound on' : 'Sound off';
       ui.sound.setAttribute('aria-pressed', String(on));
@@ -404,9 +443,40 @@ function createTrimmer({ controls = () => [], initialEnd = (d) => d, lengthHint 
   ui.sound?.addEventListener('click', () => setSound(ui.video.muted));
 
   // ed.playing is what the button asks for; tick() starts, pauses and reverses the video to match.
-  ui.play.addEventListener('click', () => {
-    ed.playing = !ed.playing;
-    ui.play.textContent = ed.playing ? 'Pause' : 'Play';
+  function setPlaying(on) {
+    ed.playing = on;
+    ui.play.textContent = on ? 'Pause' : 'Play';
+  }
+  ui.play.addEventListener('click', () => setPlaying(!ed.playing));
+
+  // Keys while the trimmer is open (not while typing in a field):
+  // Space play/pause · ←/→ one frame (Shift: 1 s) · I/O start/end at the playhead · Home/End selection edges · M sound.
+  const FRAME = 1 / 30; // the preview runs at 30 fps at most
+  document.addEventListener('keydown', (e) => {
+    if (!ed.file || !ed.canSeek || ui.editor.hidden || e.ctrlKey || e.metaKey || e.altKey) return;
+    const t = e.target;
+    if (t.closest?.('input, select, textarea, [contenteditable]') || t === ui.hStart || t === ui.hEnd) return;
+    const v = ui.video;
+    const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+    if (key === ' ') {
+      setPlaying(!ed.playing);
+    } else if (key === 'ArrowLeft' || key === 'ArrowRight') {
+      setPlaying(false);
+      const step = (e.shiftKey ? 1 : FRAME) * (key === 'ArrowLeft' ? -1 : 1);
+      v.currentTime = Math.max(0, Math.min(ed.duration, v.currentTime + step));
+    } else if (key === 'i') {
+      setRange(v.currentTime, ed.end, { seek: false });
+    } else if (key === 'o') {
+      setRange(ed.start, v.currentTime, { seek: false });
+    } else if (key === 'Home' || key === 'End') {
+      setPlaying(false);
+      showEdge(key === 'Home' ? 'start' : 'end');
+    } else if (key === 'm' && ui.sound && !ui.sound.hidden) {
+      setSound(v.muted);
+    } else {
+      return;
+    }
+    e.preventDefault(); // also keeps Space from pressing a focused button
   });
 
   return {
