@@ -12,6 +12,9 @@ A professional web-based file conversion platform with multiple specialized tool
 ### **Video/Animation Converters**
 - **🎬 GIF / Video → WebM Converter + Editor** - GIFs or screen recordings (OBS .mkv, .mp4, .mov) to WebM with built-in timeline editor
   - Videos can also be saved as GIF (width and frame rate selectable)
+  - Crop box on the preview (free or square); the crop's longer side becomes the sticker's 512 px
+  - Sticker layout (tight or square 512 frame, size, position) with transparent padding, previewed in a Telegram-style chat
+- **✂️ Video trim** - Cut the start and end off OBS recordings and save as MP4 (original quality by default; resolution, frame rate and bit rate can be lowered, or a lossless keyframe copy)
   - Timeline trimming and loop controls
   - Size optimization for web use
   - Perfect for animated stickers and Discord emojis

@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Video trim · converter.piogino</title>
+  <meta name="description" content="Cut the start and end off screen recordings such as OBS .mkv files and save them as MP4, at the original quality or smaller.">
+  <link rel="canonical" href="https://converter.piogino.ch/pages/converters/video-trim.html">
+  <link rel="icon" href="/assets/icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/assets/icons/icon-192.png">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#f3f0e8" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#151412" media="(prefers-color-scheme: dark)">
+  <link rel="stylesheet" href="/assets/site.css">
+  <script>try{var t=localStorage.getItem('preferred-theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body>
+  <header class="site-head">
+    <div class="wrap">
+      <a class="mark" href="/"><svg viewBox="0 0 18 18" aria-hidden="true"><rect x="1" y="1" width="7" height="7" fill="currentColor"/><rect x="10.75" y="1.75" width="5.5" height="5.5" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="1.75" y="10.75" width="5.5" height="5.5" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="10" y="10" width="7" height="7" fill="var(--accent)"/></svg>converter<span>.piogino</span></a>
+      <nav class="tools-nav" aria-label="Tools">
+        <a href="/pages/converters/png-to-jpeg.html">png→jpg</a>
+        <a href="/pages/converters/png-stickers.html">sticker 512</a>
+        <a href="/pages/converters/png-icons.html">emoji 100</a>
+        <a href="/pages/converters/gif-to-webm.html">gif→webm</a>
+        <a href="/pages/converters/video-trim.html" aria-current="page">video trim</a>
+        <a href="/pages/converters/image-splitter.html">map splitter</a>
+        <a href="/pages/converters/grid-generator.html">25 mm grid</a>
+      </nav>
+      <button class="theme-btn" type="button">system</button>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div class="intro">
+      <h1>Video trim</h1>
+      <p>Cuts the start and end off a screen recording, such as an OBS .mkv, and saves it as MP4. By default the clip keeps the recording's resolution, frame rate and bit rate; lower them to get a smaller file.</p>
+      <div class="spec"><span>In <b>MKV · MP4 · MOV · up to 100 MB</b></span><span>Out <b>MP4 · H.264 · AAC</b></span><span>Runs <b>on api.piogino.ch</b></span></div>
+    </div>
+    <p class="msg bad" id="server" hidden></p>
+
+    <div class="drop" id="drop" tabindex="0" role="button" aria-label="Drop a video here">
+      <div><strong>Drop a video here</strong><small>or click to choose · MKV, MP4 or MOV</small></div>
+      <input type="file" accept="video/x-matroska,.mkv,video/mp4,.mp4,video/quicktime,.mov">
+    </div>
+    <p class="msg" id="msg"></p>
+
+    <section class="editor" id="editor" hidden aria-label="Trim">
+      <div class="editor-head">
+        <span class="editor-name" id="edName"></span>
+        <button class="btn ghost small" type="button" id="edClose">Close</button>
+      </div>
+      <div class="stage editor-stage">
+        <video id="video" muted playsinline preload="auto"></video>
+        <img id="still" alt="" hidden>
+      </div>
+      <div class="timeline" id="timeline">
+        <div class="tl-track" id="track">
+          <div class="tl-sel" id="sel">
+            <span class="tl-handle" id="hStart" role="slider" tabindex="0" aria-label="Start"></span>
+            <span class="tl-handle" id="hEnd" role="slider" tabindex="0" aria-label="End"></span>
+          </div>
+          <div class="tl-head" id="head"></div>
+        </div>
+        <div class="tl-scale"><span>0 s</span><span id="tlTotal"></span></div>
+      </div>
+      <div class="editor-controls">
+        <button class="btn ghost small" type="button" id="play">Pause</button>
+        <label class="field compact"><span class="label">Start</span><input type="number" id="start" min="0" step="0.05" value="0"></label>
+        <label class="field compact"><span class="label">End</span><input type="number" id="end" min="0" step="0.05" value="0"></label>
+        <div class="field compact"><span class="label">Length</span><output id="len" class="value">0.00 s</output></div>
+        <span class="editor-presets">
+          <button class="btn ghost small" type="button" data-preset="all">Whole clip</button>
+        </span>
+      </div>
+      <p class="hint" id="lenHint"></p>
+
+      <fieldset class="field video-cut">
+        <legend>Cut</legend>
+        <div class="seg">
+          <label><input type="radio" name="cut" value="exact" checked><span>Exact · re-encode</span></label>
+          <label><input type="radio" name="cut" value="copy"><span>Copy · untouched</span></label>
+        </div>
+      </fieldset>
+      <div class="editor-controls">
+        <label class="field compact"><span class="label">Resolution</span><select id="height"><option value="">Original</option></select></label>
+        <label class="field compact"><span class="label">Frame rate</span><select id="fps"><option value="">Original</option></select></label>
+        <label class="field compact"><span class="label">Video bit rate</span><select id="bitrate"><option value="">Original</option></select></label>
+        <label class="check"><input type="checkbox" id="audio" checked> Keep sound</label>
+      </div>
+      <p class="hint" id="outHint"></p>
+      <div class="actions">
+        <button class="btn" type="button" id="save">Save video</button>
+        <output class="value" id="estimate"></output>
+      </div>
+    </section>
+
+    <div class="results" id="results"></div>
+
+    <div class="notes">
+      <div>
+        <h2>Exact or copy</h2>
+        <p>Exact re-encodes the clip, so it starts and ends where you set it, at near the original quality. Copy keeps the recording's data untouched and is instant, but a clip can only start on a keyframe: it may begin a few seconds early. With a keyframe interval of 1 s in OBS (Settings → Output), copy cuts start within a second of your start.</p>
+      </div>
+      <div>
+        <h2>Smaller files</h2>
+        <p>Lowering the resolution or frame rate keeps the picture sharp at a lower bit rate. The size shown is an estimate from the bit rate; busy scenes need more, still ones less.</p>
+      </div>
+    </div>
+  </main>
+
+  <footer class="site-foot">
+    <div class="wrap">
+      <a href="/">converter.piogino.ch</a>
+      <span>Files are sent to api.piogino.ch and deleted after conversion</span>
+      <a href="/privacy.html">Privacy</a>
+    </div>
+  </footer>
+
+  <script src="/assets/js/core.js"></script>
+  <script src="/assets/js/trimmer.js"></script>
+  <script src="/assets/js/video.js"></script>
+</body>
+</html>

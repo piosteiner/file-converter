@@ -23,6 +23,7 @@
         <a href="/pages/converters/png-stickers.html">sticker 512</a>
         <a href="/pages/converters/png-icons.html">emoji 100</a>
         <a href="/pages/converters/gif-to-webm.html" aria-current="page">gif→webm</a>
+        <a href="/pages/converters/video-trim.html">video trim</a>
         <a href="/pages/converters/image-splitter.html">map splitter</a>
         <a href="/pages/converters/grid-generator.html">25 mm grid</a>
       </nav>
@@ -65,8 +66,22 @@
         <button class="btn ghost small" type="button" id="edClose">Close</button>
       </div>
       <div class="stage editor-stage">
-        <video id="video" muted playsinline preload="auto"></video>
-        <img id="still" alt="" hidden>
+        <div class="crop-wrap" id="cropWrap">
+          <video id="video" muted playsinline preload="auto"></video>
+          <img id="still" alt="" hidden>
+          <div class="crop-box" id="cropBox" hidden></div>
+        </div>
+      </div>
+      <div class="editor-controls crop-controls">
+        <div class="field compact">
+          <span class="label">Crop</span>
+          <div class="seg">
+            <label><input type="radio" name="cropShape" value="free" checked><span>Free</span></label>
+            <label><input type="radio" name="cropShape" value="square"><span>Square</span></label>
+          </div>
+        </div>
+        <button class="btn ghost small" type="button" id="cropReset">Full frame</button>
+        <p class="hint crop-info" id="cropInfo"></p>
       </div>
       <div class="timeline" id="timeline">
         <div class="tl-track" id="track">
@@ -91,6 +106,34 @@
         </span>
       </div>
       <p class="hint" id="lenHint"></p>
+      <div class="editor-controls layout-controls">
+        <div class="field compact">
+          <span class="label">Sticker frame</span>
+          <div class="seg">
+            <label><input type="radio" name="frame" value="tight" checked><span>Tight</span></label>
+            <label><input type="radio" name="frame" value="square"><span>Square 512</span></label>
+          </div>
+        </div>
+        <label class="field compact layout-range"><span class="label">Size <output id="layoutSizeOut">100 %</output></span>
+          <input type="range" id="layoutSize" min="20" max="100" step="1" value="100"></label>
+        <label class="field compact layout-range"><span class="label">Horizontal <output id="layoutXOut">center</output></span>
+          <input type="range" id="layoutX" min="0" max="100" step="1" value="50"></label>
+        <label class="field compact layout-range"><span class="label">Vertical <output id="layoutYOut">middle</output></span>
+          <input type="range" id="layoutY" min="0" max="100" step="1" value="50"></label>
+        <button class="btn ghost small" type="button" id="layoutReset">Reset</button>
+      </div>
+      <figure class="tg-preview">
+        <div class="tg-chat" id="tgChat">
+          <div class="tg-row in"><div class="tg-bubble">Look what I recorded<time>13:41</time></div></div>
+          <div class="tg-row out"><div class="tg-bubble">Ha, nice. Here's how it looks from my side<time>13:41</time></div></div>
+          <div class="tg-row in tg-sticker-row"><div class="tg-sticker"><canvas></canvas><time>13:42</time></div></div>
+          <div class="tg-row out tg-sticker-row"><div class="tg-sticker"><canvas></canvas><time>13:42</time></div></div>
+          <div class="tg-row in tg-emoji-row"><div class="tg-bubble">That one goes in the text <canvas class="tg-emoji"></canvas> like this<time>13:43</time></div></div>
+          <div class="tg-row out tg-emoji-row"><div class="tg-bubble">And on my side <canvas class="tg-emoji"></canvas> too<time>13:43</time></div></div>
+        </div>
+        <figcaption class="hint"><span id="tgCaption">Telegram-style preview, approximate: stickers show inside a 224 px square, aligned to the sender's side.</span>
+          <label class="check"><input type="checkbox" id="tgEdges"> Show sticker edges</label></figcaption>
+      </figure>
       <div class="editor-controls" id="gifOpts" hidden>
         <label class="field compact"><span class="label">GIF width</span>
           <select id="gifWidth"><option value="320">320 px</option><option value="480" selected>480 px</option><option value="640">640 px</option><option value="1280">original</option></select></label>
@@ -116,6 +159,11 @@
         <p>Stickers longer than 3 s are cut at 3 s. Ping-pong plays the selection forward and back, so it doubles the length — keep the selection at 1.5 s or less. A GIF from a video can be up to 60 s long, but GIFs grow fast: keep them short, narrow and at a low frame rate.</p>
       </div>
       <div>
+        <h2>Crop</h2>
+        <p>Drag a box on the preview to crop. Its longer side becomes the sticker's 512 px (Telegram wants one side exactly 512 px), so a smaller box zooms in. Boxes under 512 px get enlarged and look softer.</p>
+        <p>Telegram shows every sticker in the same square, so a wide sticker looks small and a square one big. Square 512 with a smaller size adds transparent space, which shrinks the sticker and moves it towards a side.</p>
+      </div>
+      <div>
         <h2>Size</h2>
         <p>The server lowers the quality step by step until the file fits the limit. Long or busy clips may not fit; trim them shorter.</p>
       </div>
@@ -131,6 +179,8 @@
   </footer>
 
   <script src="/assets/js/core.js"></script>
+  <script src="/assets/js/trimmer.js"></script>
+  <script src="/assets/js/crop.js"></script>
   <script src="/assets/js/gif.js"></script>
 </body>
 </html>

@@ -1,171 +1,181 @@
 // GIF or video (OBS .mkv, .mp4, .mov) → WebM / GIF via api.piogino.ch. One file opens the trimmer, several convert directly.
 
 (function () {
-  const API = 'https://api.piogino.ch';
-  const MAX_UPLOAD = 100 * 1024 * 1024;
-  const MIN_LEN = 0.1;
   const LIMIT_S = 3;
 
   const ui = {
     server: $('#server'), drop: $('#drop'), msg: $('#msg'),
     maxSize: $('#maxSize'), maxSizeOut: $('#maxSizeOut'),
-    editor: $('#editor'), edName: $('#edName'), edClose: $('#edClose'),
-    video: $('#video'), still: $('#still'),
-    track: $('#track'), sel: $('#sel'), hStart: $('#hStart'), hEnd: $('#hEnd'), head: $('#head'), tlTotal: $('#tlTotal'),
-    play: $('#play'), start: $('#start'), end: $('#end'), len: $('#len'), lenHint: $('#lenHint'), pingpong: $('#pingpong'),
     toWebm: $('#toWebm'), toGif: $('#toGif'), gifOpts: $('#gifOpts'), gifWidth: $('#gifWidth'), gifFps: $('#gifFps'),
     gifPreviewBtn: $('#gifPreviewBtn'), gifPreview: $('#gifPreview'), gifImg: $('#gifImg'), gifMeta: $('#gifMeta'),
+    cropReset: $('#cropReset'), cropInfo: $('#cropInfo'),
+    layoutSize: $('#layoutSize'), layoutX: $('#layoutX'), layoutY: $('#layoutY'),
+    layoutSizeOut: $('#layoutSizeOut'), layoutXOut: $('#layoutXOut'), layoutYOut: $('#layoutYOut'), layoutReset: $('#layoutReset'),
+    tgChat: $('#tgChat'), tgEdges: $('#tgEdges'), tgCaption: $('#tgCaption'),
+    video: $('#video'), still: $('#still'),
   };
   const results = new Results($('#results'), { zipName: 'webm.zip' });
   const mode = () => $('input[name="mode"]:checked').value;
   const isGif = (f) => /gif$/i.test(f.type) || /\.gif$/i.test(f.name);
-  const isVideo = (f) => /\.(mkv|mp4|mov)$/i.test(f.name);
+
+  const trimmer = createTrimmer({
+    controls: () => [ui.toWebm, ui.toGif, ui.gifWidth, ui.gifFps, ui.gifPreviewBtn, ui.cropReset, ...$$('input[name="cropShape"]'),
+      ui.layoutSize, ui.layoutX, ui.layoutY, ui.layoutReset, ...$$('input[name="frame"]')],
+    initialEnd: (d) => (d > LIMIT_S ? LIMIT_S : d),
+    lengthHint: (played) => (played > LIMIT_S + 0.005
+      ? `Longer than ${LIMIT_S} s${trimmer.pingpong() ? ' with ping-pong' : ''} — the WebM will be cut at ${LIMIT_S} s.`
+      : ''),
+    onRange: () => gifSettingsChanged(),
+    onClose: () => { hideGifPreview(); cropper.show(false); frame = null; cancelAnimationFrame(chatRaf); },
+  });
+  const ed = trimmer.ed;
+
+  // ---------- crop ----------
+
+  const cropper = createCropper({ wrap: $('#cropWrap'), box: $('#cropBox'), onChange: () => { describeCrop(); gifSettingsChanged(); describeLayout(); } });
+  const cropValue = () => cropper.get()?.map((v) => v.toFixed(5)).join(',') ?? '';
+  let frame = null; // source size { width, height } of the open file, when known
+
+  // Crop size in source pixels and what Telegram gets: the longer side is scaled to exactly 512 (emoji: 100 × 100).
+  function describeCrop() {
+    const c = cropper.get() ?? [0, 0, 1, 1];
+    const what = cropper.get() ? 'Crop' : 'Full frame';
+    if (!frame) { ui.cropInfo.textContent = cropper.get() ? `${what} ${Math.round(c[2] * 100)} % × ${Math.round(c[3] * 100)} %` : ''; return; }
+    const w = Math.round(c[2] * frame.width);
+    const h = Math.round(c[3] * frame.height);
+    const target = mode() === 'emoji' ? 100 : 512;
+    const out = mode() === 'emoji' ? '100 × 100'
+      : w >= h ? `512 × ${Math.round((h * 512) / w / 2) * 2}` : `${Math.round((w * 512) / h / 2) * 2} × 512`;
+    const small = Math.max(w, h) < target;
+    ui.cropInfo.textContent = `${what} ${w} × ${h} px → ${mode() === 'emoji' ? 'emoji' : 'sticker'} ${out}${small ? ` · under ${target} px, so it gets enlarged and looks softer` : ''}`;
+    ui.cropInfo.classList.toggle('warn', small);
+  }
+
+  $$('input[name="cropShape"]').forEach((r) => r.addEventListener('change', () => cropper.setSquare(r.value === 'square' && r.checked)));
+  ui.cropReset.addEventListener('click', () => {
+    $('input[name="cropShape"][value="free"]').checked = true;
+    cropper.reset();
+  });
+  $$('input[name="mode"]').forEach((r) => r.addEventListener('change', () => { describeCrop(); describeLayout(); }));
+
+  // ---------- sticker layout ----------
+  // Telegram shows every sticker inside the same square, so a wide sticker looks small and a square one big.
+  // Transparent space around the content shrinks it and moves it towards a side. Same maths as the server's
+  // sticker_layout() in server/gif_to_webm.py: keep the two in step.
+
+  const STICKER_BOX = 224; // CSS px Telegram Desktop gives a sticker, roughly
+  const EMOJI_BOX = 20;    // custom emoji inside a line of text
+  const even = (v) => Math.max(2, Math.round(v / 2) * 2);
+  const sticker = () => mode() !== 'emoji';
+  const layout = () => ({
+    square: $('input[name="frame"]:checked').value === 'square',
+    size: ui.layoutSize.value / 100,
+    x: ui.layoutX.value / 100,
+    y: ui.layoutY.value / 100,
+  });
+  // Sent with a WebM only when it differs from the plain fit (tight frame, full size, centred).
+  const layoutValue = () => {
+    const l = layout();
+    if (!l.square && l.size === 1 && l.x === 0.5 && l.y === 0.5) return '';
+    return [l.square ? 'square' : 'tight', l.size, l.x, l.y].join(',');
+  };
+
+  // { cw, ch, w, h, left, top }: canvas and content size in sticker pixels, for content of width × height.
+  function stickerLayout(width, height) {
+    const { square, size, x, y } = layout();
+    let cw; let ch;
+    if (!sticker()) { cw = ch = 100; } else if (square) { cw = ch = 512; } else if (width >= height) { cw = 512; ch = even((512 * height) / width); } else { cw = even((512 * width) / height); ch = 512; }
+    const scale = Math.min((cw * size) / width, (ch * size) / height);
+    const w = Math.min(cw, even(width * scale));
+    const h = Math.min(ch, even(height * scale));
+    return { cw, ch, w, h, left: Math.round(((cw - w) * x) / 2) * 2, top: Math.round(((ch - h) * y) / 2) * 2 };
+  }
+
+  // Size of the cropped content: in source pixels when known, else in the preview's (same shape).
+  function contentSize() {
+    const src = ui.video.hidden ? ui.still : ui.video;
+    const fw = frame?.width || src.videoWidth || src.naturalWidth || 0;
+    const fh = frame?.height || src.videoHeight || src.naturalHeight || 0;
+    const c = cropper.get() ?? [0, 0, 1, 1];
+    return fw && fh ? { width: Math.max(2, Math.round(c[2] * fw)), height: Math.max(2, Math.round(c[3] * fh)), src, c } : null;
+  }
+
+  const placeName = (v, [a, mid, b]) => (v === 0 ? a : v === 50 ? mid : v === 100 ? b : `${v} %`);
+
+  function describeLayout() {
+    ui.layoutSizeOut.value = `${ui.layoutSize.value} %`;
+    ui.layoutXOut.value = placeName(Number(ui.layoutX.value), ['left', 'center', 'right']);
+    ui.layoutYOut.value = placeName(Number(ui.layoutY.value), ['top', 'middle', 'bottom']);
+    $$('input[name="frame"]').forEach((r) => { r.disabled = !sticker() || !ed.file || ui.toWebm.disabled; });
+    // Position only matters where there is room to move.
+    const c = contentSize();
+    const l = c ? stickerLayout(c.width, c.height) : null;
+    ui.layoutX.disabled = !l || l.w >= l.cw || ui.toWebm.disabled;
+    ui.layoutY.disabled = !l || l.h >= l.ch || ui.toWebm.disabled;
+    ui.tgChat.classList.toggle('emoji', !sticker());
+    ui.tgCaption.textContent = sticker()
+      ? `Telegram-style preview, approximate: stickers show inside a ${STICKER_BOX} px square, aligned to the sender's side.${l ? ` This one: ${l.cw} × ${l.ch}, content ${l.w} × ${l.h}.` : ''}`
+      : 'Telegram-style preview, approximate: custom emoji sit in the text at about the height of a line.';
+  }
+
+  [ui.layoutSize, ui.layoutX, ui.layoutY, ...$$('input[name="frame"]')].forEach((i) => i.addEventListener('input', describeLayout));
+  $$('input[name="frame"]').forEach((i) => i.addEventListener('change', describeLayout));
+  ui.layoutReset.addEventListener('click', () => {
+    $('input[name="frame"][value="tight"]').checked = true;
+    ui.layoutSize.value = 100;
+    ui.layoutX.value = ui.layoutY.value = 50;
+    describeLayout();
+  });
+  ui.tgEdges.addEventListener('change', () => ui.tgChat.classList.toggle('edges', ui.tgEdges.checked));
+
+  // Draws the current preview frame into every sticker / emoji canvas of the chat, laid out like the WebM will be.
+  let chatRaf = 0;
+  function drawChat() {
+    cancelAnimationFrame(chatRaf);
+    if (!ed.file) return;
+    const c = contentSize();
+    if (c) {
+      const l = stickerLayout(c.width, c.height);
+      const dpr = window.devicePixelRatio || 1;
+      const sw = c.src.videoWidth || c.src.naturalWidth;
+      const sh = c.src.videoHeight || c.src.naturalHeight;
+      const canvases = sticker() ? $$('.tg-sticker canvas', ui.tgChat) : $$('.tg-emoji', ui.tgChat);
+      const box = sticker() ? STICKER_BOX : EMOJI_BOX;
+      // Telegram fits the whole sticker (canvas, transparent parts included) into its square.
+      const dw = (box * l.cw) / Math.max(l.cw, l.ch);
+      const dh = (box * l.ch) / Math.max(l.cw, l.ch);
+      for (const cv of canvases) {
+        const pw = Math.round(dw * dpr);
+        const ph = Math.round(dh * dpr);
+        if (cv.width !== pw || cv.height !== ph) { cv.width = pw; cv.height = ph; cv.style.width = `${dw}px`; cv.style.height = `${dh}px`; }
+        const ctx = cv.getContext('2d');
+        ctx.clearRect(0, 0, pw, ph);
+        if (sw && sh) {
+          const k = pw / l.cw;
+          ctx.drawImage(c.src, c.c[0] * sw, c.c[1] * sh, c.c[2] * sw, c.c[3] * sh, l.left * k, l.top * k, l.w * k, l.h * k);
+        }
+      }
+    }
+    chatRaf = requestAnimationFrame(drawChat);
+  }
+
+  // Width and height from the GIF header (logical screen size).
+  async function gifSize(file) {
+    const b = new Uint8Array(await file.slice(0, 10).arrayBuffer());
+    return b.length === 10 ? { width: b[6] | (b[7] << 8), height: b[8] | (b[9] << 8) } : null;
+  }
 
   ui.maxSize.addEventListener('input', () => { ui.maxSizeOut.value = `${ui.maxSize.value} KB`; });
 
   // ---------- server ----------
 
-  // XMLHttpRequest rather than fetch: it reports upload and download progress.
-  // onProgress(phase, fraction): 'upload' 0…1, 'server' once the upload is done, 'download' 0…1.
-  function request(path, { body, timeout = 180_000, as = 'json', onProgress } = {}) {
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open(body ? 'POST' : 'GET', API + path);
-      xhr.responseType = as === 'blob' ? 'blob' : 'text';
-      xhr.timeout = timeout;
-      if (onProgress) {
-        if (body) {
-          xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress('upload', e.loaded / e.total); };
-          xhr.upload.onload = () => onProgress('server');
-        }
-        xhr.onprogress = (e) => { if (e.lengthComputable && as === 'blob') onProgress('download', e.loaded / e.total); };
-      }
-      xhr.onload = async () => {
-        if (xhr.status < 200 || xhr.status >= 300) {
-          let data = {};
-          try { data = JSON.parse(as === 'blob' ? await xhr.response.text() : xhr.responseText); } catch { /* not JSON */ }
-          reject(Object.assign(new Error(data.error || `Server answered ${xhr.status}.`), { data }));
-        } else if (as === 'blob') {
-          resolve(xhr.response);
-        } else {
-          try { resolve(JSON.parse(xhr.responseText)); } catch { reject(new Error('The server sent an unexpected answer.')); }
-        }
-      };
-      xhr.ontimeout = () => reject(new Error('The server took too long to answer.'));
-      xhr.onerror = () => reject(new Error('Could not reach the server. Check your connection.'));
-      xhr.send(body || null);
-    });
-  }
-
-  // Progress of one server job in the message line: upload %, encoding % (polled from the server), download %.
-  // The server tries stricter quality settings until the file fits the size limit, so encoding may run more than once.
-  function tracker(label, { verb = 'Converting', poll = true } = {}) {
-    const job = crypto.randomUUID();
-    let stage = 'upload';
-    let pct = 0;
-    let attempt = 1;
-    let timer = 0;
-    let stopped = false;
-    const render = () => {
-      const what = stage === 'upload' ? `Uploading ${pct} %`
-        : stage === 'encoding' ? `${verb} ${pct} %${attempt > 1 ? ` · try ${attempt}, the last result was over the size limit` : ''}`
-          : stage === 'download' ? `Downloading ${pct} %`
-            : `${verb}…`;
-      say(ui.msg, label ? `${label} · ${what}` : what, 'busy');
-    };
-    const check = async () => {
-      if (stopped) return;
-      try {
-        const p = await request(`/api/progress/${job}`, { timeout: 5000 });
-        if (!stopped && p.stage === 'encoding' && (stage === 'server' || stage === 'encoding')) {
-          stage = 'encoding';
-          pct = p.percent;
-          attempt = p.attempt;
-          render();
-        }
-      } catch { /* a missed poll is fine */ }
-      if (!stopped) timer = setTimeout(check, 500);
-    };
-    render();
-    return {
-      job,
-      onProgress(phase, fraction) {
-        if (stopped) return;
-        if (phase === 'upload') {
-          stage = 'upload';
-          pct = Math.round(fraction * 100);
-        } else if (phase === 'server') {
-          if (stage !== 'upload') return;
-          stage = 'server';
-          if (poll) check();
-        } else {
-          clearTimeout(timer);
-          stage = 'download';
-          pct = Math.round(fraction * 100);
-        }
-        render();
-      },
-      stop() { stopped = true; clearTimeout(timer); },
-    };
-  }
-
-  async function checkServer() {
-    try {
-      const h = await request('/api/health', { timeout: 8000 });
-      if (h.ffmpeg_available && h.converter_available) { ui.server.hidden = true; return; }
-      showServerProblem('The server is up but its converter is not available right now.');
-    } catch {
-      showServerProblem('The conversion server is not reachable right now.');
-    }
-  }
-
-  function showServerProblem(text) {
-    ui.server.hidden = false;
-    ui.server.replaceChildren(text, ' ', el('button', { class: 'btn ghost small', type: 'button', onclick: () => {
-      ui.server.replaceChildren(el('span', { class: 'busy-line', text: 'Checking…' }));
-      checkServer();
-    } }, 'Try again'));
-  }
-
-  // The video open in the trimmer stays on the server (ed.source) after its preview, so later requests send
-  // only its id. build(form) adds the other fields; if the server has dropped the video (1 hour unused),
-  // upload it again and let the server keep that copy.
-  async function withSource(file, build, send) {
-    if (ed.source && ed.file === file) {
-      const form = build(new FormData());
-      form.append('source', ed.source);
-      form.append('name', file.name);
-      try { return await send(form); } catch (err) {
-        if (!err.data?.source_expired) throw err;
-        ed.source = null;
-      }
-    }
-    const form = build(new FormData());
-    form.append('file', file, file.name);
-    const keep = isVideo(file) && ed.file === file ? crypto.randomUUID() : null;
-    if (keep) form.append('keep', keep);
-    let result;
-    try { result = await send(form); } catch (err) {
-      if (keep) navigator.sendBeacon(`${API}/api/source/${keep}/delete`);
-      throw err;
-    }
-    if (keep && ed.file === file) ed.source = keep;
-    else if (keep) navigator.sendBeacon(`${API}/api/source/${keep}/delete`); // closed meanwhile
-    return result;
-  }
-
-  function forgetSource() {
-    if (!ed.source) return;
-    navigator.sendBeacon(`${API}/api/source/${ed.source}/delete`);
-    ed.source = null;
-  }
-  window.addEventListener('pagehide', forgetSource);
-
-  async function toWebm(blob, filename, label = '') {
-    const t = tracker(label);
+  async function toWebm(blob, filename, label = '', crop = '', layoutField = '') {
+    const t = apiTracker(ui.msg, label);
     try {
       const form = new FormData();
       form.append('file', blob, filename);
+      if (crop) form.append('crop', crop);
+      if (layoutField) form.append('layout', layoutField);
       return await convertForm(form, t, null);
     } finally {
       t.stop();
@@ -174,10 +184,14 @@
 
   // Video in the trimmer: same as toWebm, but from the kept copy on the server.
   // trim: { start, end, pingpong } — the server cuts videos itself (a GIF in between would cost quality).
-  async function sourceToWebm(file, trim) {
-    const t = tracker('');
+  async function sourceToWebm(file, trim, crop, layoutField) {
+    const t = apiTracker(ui.msg, '');
     try {
-      return await withSource(file, (form) => form, (form) => convertForm(form, t, trim));
+      return await trimmer.withSource(file, (form) => {
+        if (crop) form.append('crop', crop);
+        if (layoutField) form.append('layout', layoutField);
+        return form;
+      }, (form) => convertForm(form, t, trim));
     } finally {
       t.stop();
     }
@@ -193,26 +207,27 @@
       form.append('end', trim.end.toFixed(3));
       if (trim.pingpong) form.append('pingpong', 'true');
     }
-    const info = await request('/api/convert', { body: form, onProgress: t.onProgress });
+    const info = await apiRequest('/api/convert', { body: form, onProgress: t.onProgress });
     if (!info.success) throw new Error(info.error || 'Conversion failed.');
-    const webm = await request(`/api/download/${encodeURIComponent(info.download_id)}`, { as: 'blob', timeout: 60_000, onProgress: t.onProgress });
+    const webm = await apiRequest(`/api/download/${encodeURIComponent(info.download_id)}`, { as: 'blob', timeout: 60_000, onProgress: t.onProgress });
     return { webm, info };
   }
 
   // GIF of the selection. Videos also take the GIF width and frame rate. quiet: no progress in the message line.
-  async function trimGif(file, start, end, pingpong, { quiet = false } = {}) {
-    const t = quiet ? null : tracker('', { verb: 'Trimming', poll: false });
+  async function trimGif(file, start, end, pingpong, { quiet = false, crop = '' } = {}) {
+    const t = quiet ? null : apiTracker(ui.msg, '', { verb: 'Trimming', poll: false });
     try {
-      return await withSource(file, (form) => {
+      return await trimmer.withSource(file, (form) => {
         form.append('start', start.toFixed(3));
         form.append('end', end.toFixed(3));
         if (pingpong) form.append('pingpong', 'true');
-        if (isVideo(file)) {
+        if (crop) form.append('crop', crop);
+        if (isVideoFile(file)) {
           form.append('width', ui.gifWidth.value);
           form.append('fps', ui.gifFps.value);
         }
         return form;
-      }, (form) => request('/edit/trim-gif', { body: form, as: 'blob', onProgress: t?.onProgress }));
+      }, (form) => apiRequest('/edit/trim-gif', { body: form, as: 'blob', onProgress: t?.onProgress }));
     } finally {
       t?.stop();
     }
@@ -228,13 +243,13 @@
   // ---------- drop ----------
 
   setupDrop(ui.drop, async (files) => {
-    const gifs = files.filter((f) => isGif(f) || isVideo(f));
+    const gifs = files.filter((f) => isGif(f) || isVideoFile(f));
     if (!gifs.length) return say(ui.msg, 'Only GIF, MKV, MP4 and MOV files work here.', 'bad');
     const big = gifs.find((f) => f.size > MAX_UPLOAD);
     if (big) return say(ui.msg, `${big.name} is larger than 100 MB.`, 'bad');
     if (gifs.length === 1) return openEditor(gifs[0]);
 
-    closeEditor();
+    trimmer.close();
     results.clear();
     ui.drop.classList.add('busy');
     let ok = 0;
@@ -255,11 +270,8 @@
 
   // ---------- trimmer ----------
 
-  const ed = {
-    file: null, duration: 0, start: 0, end: 0, videoUrl: null, stillUrl: null, canSeek: false, raf: 0,
-    playing: true, reversing: false, last: 0, source: null,
-    gif: null, gifWanted: false, gifTimer: 0, gifRun: 0, // GIF preview: { key, blob, url }, shown while gifWanted
-  };
+  // GIF preview: gif = { key, blob, url }, shown while wanted
+  const gifState = { gif: null, wanted: false, timer: 0, run: 0 };
 
   // Total play time of a GIF from its frame delays, without decoding images.
   async function gifDuration(file) {
@@ -289,334 +301,110 @@
     return total / 100;
   }
 
-  // Length of a video from the browser's own player; 0 if it can't read the container (MKV in some browsers).
-  function videoDuration(file) {
-    return new Promise((resolve) => {
-      const v = document.createElement('video');
-      const url = URL.createObjectURL(file);
-      const done = (d) => { clearTimeout(timer); URL.revokeObjectURL(url); v.removeAttribute('src'); resolve(Number.isFinite(d) ? d : 0); };
-      const timer = setTimeout(() => done(0), 5000);
-      v.preload = 'metadata';
-      v.onloadedmetadata = () => done(v.duration);
-      v.onerror = () => done(0);
-      v.src = url;
-    });
-  }
-
-  function closeEditor() {
-    cancelAnimationFrame(ed.raf);
-    ui.video.pause();
-    ui.video.removeAttribute('src');
-    ui.video.load();
-    if (ed.videoUrl) URL.revokeObjectURL(ed.videoUrl);
-    if (ed.stillUrl) URL.revokeObjectURL(ed.stillUrl);
-    forgetSource();
-    hideGifPreview();
-    Object.assign(ed, { file: null, duration: 0, videoUrl: null, stillUrl: null, canSeek: false, playing: true, reversing: false, last: 0 });
-    ui.play.textContent = 'Pause';
-    ui.editor.hidden = true;
-    ui.drop.hidden = false;
-  }
-
   async function openEditor(file) {
-    closeEditor();
     results.clear();
-    ed.file = file;
-    ui.edName.textContent = `${file.name} · ${formatBytes(file.size)}`;
-    ui.drop.hidden = true;
-    ui.editor.hidden = false;
-    ui.video.hidden = true;
-    ui.still.hidden = true;
-    ui.gifOpts.hidden = !isVideo(file);
-    ui.toGif.textContent = isVideo(file) ? 'Save as GIF' : 'Save trimmed GIF';
-    setBusy(true);
-
-    const localDuration = await (isVideo(file) ? videoDuration(file) : gifDuration(file)).catch(() => 0);
-    let previewError = null;
-    const t = tracker('Preparing the preview', { verb: 'Encoding' });
+    const video = isVideoFile(file);
+    ui.gifOpts.hidden = !video;
+    ui.toGif.textContent = video ? 'Save as GIF' : 'Save trimmed GIF';
+    $('input[name="cropShape"][value="free"]').checked = true;
+    cropper.reset({ notify: false });
+    ui.cropInfo.textContent = '';
+    if (!await trimmer.open(file, video ? {} : { fallbackDuration: () => gifDuration(file), still: true })) return;
+    cropper.show(true);
+    drawChat();
     try {
-      const form = new FormData();
-      form.append('file', file, file.name);
-      form.append('job', t.job);
-      const keep = isVideo(file) ? crypto.randomUUID() : null;
-      if (keep) form.append('keep', keep);
-      const webm = await request('/convert/gif-to-webm', { body: form, as: 'blob', timeout: 300_000, onProgress: t.onProgress });
-      t.stop();
-      ed.source = keep;
-      if (ed.file !== file) { forgetSource(); return; } // closed meanwhile
-      ed.videoUrl = URL.createObjectURL(webm);
-      await new Promise((resolve, reject) => {
-        const t = setTimeout(() => reject(new Error('timeout')), 10_000);
-        ui.video.onloadedmetadata = () => { clearTimeout(t); resolve(); };
-        ui.video.onerror = () => { clearTimeout(t); reject(new Error('This browser cannot play the WebM preview.')); };
-        ui.video.src = ed.videoUrl;
-      });
-      ed.canSeek = Number.isFinite(ui.video.duration) && ui.video.duration > 0;
-    } catch (err) {
-      previewError = err;
-    } finally {
-      t.stop();
-    }
-    if (ed.file !== file) return;
-
-    if (ed.canSeek) {
-      ed.duration = ui.video.duration;
-      ui.video.hidden = false;
-      ui.video.play().catch(() => {});
-    } else {
-      // No scrubbing, but trimming by numbers and handles still works.
-      ed.duration = localDuration;
-      if (!isVideo(file)) {
-        ed.stillUrl = URL.createObjectURL(file);
-        ui.still.src = ed.stillUrl;
-        ui.still.hidden = false;
-      }
-    }
-    setBusy(false);
-
-    if (!ed.duration) {
-      say(ui.msg, previewError ? `No preview: ${previewError.message}` : 'Could not read the length of this file.', 'bad');
-      ed.duration = 3;
-    } else if (previewError) {
-      say(ui.msg, `${isVideo(ed.file) ? 'No preview' : 'Showing the GIF itself'} — ${previewError.message} Trim with the handles or numbers.`, '');
-    } else {
-      say(ui.msg, '');
-    }
-    ui.head.hidden = !ed.canSeek;
-    ui.play.hidden = !ed.canSeek;
-    ui.tlTotal.textContent = `${ed.duration.toFixed(2)} s`;
-    ui.start.max = ui.end.max = ed.duration.toFixed(2);
-    setRange(0, Math.min(ed.duration, ed.duration > LIMIT_S ? LIMIT_S : ed.duration));
-    tick();
-  }
-
-  function setBusy(busy) {
-    [ui.toWebm, ui.toGif, ui.start, ui.end, ui.pingpong, ui.gifWidth, ui.gifFps, ui.gifPreviewBtn, ...$$('[data-preset]')].forEach((b) => { b.disabled = busy; });
-  }
-
-  function setRange(start, end, { seek = true } = {}) {
-    const d = ed.duration;
-    start = Math.max(0, Math.min(start, d - MIN_LEN));
-    end = Math.min(d, Math.max(end, start + MIN_LEN));
-    ed.start = start;
-    ed.end = end;
-    ui.sel.style.left = `${(start / d) * 100}%`;
-    ui.sel.style.width = `${((end - start) / d) * 100}%`;
-    ui.hStart.setAttribute('aria-valuenow', start.toFixed(2));
-    ui.hEnd.setAttribute('aria-valuenow', end.toFixed(2));
-    if (document.activeElement !== ui.start) ui.start.value = start.toFixed(2);
-    if (document.activeElement !== ui.end) ui.end.value = end.toFixed(2);
-
-    const len = end - start;
-    const played = ui.pingpong.checked ? len * 2 : len;
-    ui.len.textContent = `${played.toFixed(2)} s`;
-    const over = played > LIMIT_S + 0.005;
-    ui.len.classList.toggle('over', over);
-    ui.lenHint.textContent = over
-      ? `Longer than ${LIMIT_S} s${ui.pingpong.checked ? ' with ping-pong' : ''} — the WebM will be cut at ${LIMIT_S} s.`
-      : '';
-    if (seek && ed.canSeek && (ui.video.currentTime < start || ui.video.currentTime > end)) ui.video.currentTime = start;
-    gifSettingsChanged();
+      frame = video ? (ed.source ? await apiRequest(`/api/source/${ed.source}/info`, { timeout: 15_000 }) : null) : await gifSize(file);
+    } catch { frame = null; }
+    if (ed.file === file) { describeCrop(); describeLayout(); }
   }
 
   // ---------- GIF preview (videos) ----------
   // Renders the real GIF on the server, so width, frame rate, colours and file size are what Save as GIF gives.
   // Once shown, it follows the selection and settings, re-rendering after a short pause.
 
-  const gifKey = () => [ed.start.toFixed(3), ed.end.toFixed(3), ui.pingpong.checked, ui.gifWidth.value, ui.gifFps.value].join('|');
-  const gifName = (file) => `${stem(file.name)}_${ed.start.toFixed(1)}-${ed.end.toFixed(1)}s${ui.pingpong.checked ? '_pingpong' : ''}.gif`;
+  const gifKey = () => [ed.start.toFixed(3), ed.end.toFixed(3), trimmer.pingpong(), ui.gifWidth.value, ui.gifFps.value, cropValue()].join('|');
+  const gifName = (file) => `${stem(file.name)}_${ed.start.toFixed(1)}-${ed.end.toFixed(1)}s${trimmer.pingpong() ? '_pingpong' : ''}.gif`;
 
   function hideGifPreview() {
-    clearTimeout(ed.gifTimer);
-    ed.gifRun++;
-    if (ed.gif) URL.revokeObjectURL(ed.gif.url);
-    ed.gif = null;
-    ed.gifWanted = false;
+    clearTimeout(gifState.timer);
+    gifState.run++;
+    if (gifState.gif) URL.revokeObjectURL(gifState.gif.url);
+    gifState.gif = null;
+    gifState.wanted = false;
     ui.gifPreview.hidden = true;
     ui.gifImg.removeAttribute('src');
     ui.gifPreviewBtn.textContent = 'Preview GIF';
   }
 
   function gifSettingsChanged() {
-    if (!ed.gifWanted || ed.gif?.key === gifKey()) return;
+    if (!gifState.wanted || gifState.gif?.key === gifKey()) return;
     ui.gifMeta.textContent = 'Settings changed — updating…';
     ui.gifPreview.classList.add('stale');
-    clearTimeout(ed.gifTimer);
-    ed.gifTimer = setTimeout(renderGifPreview, 700);
+    clearTimeout(gifState.timer);
+    gifState.timer = setTimeout(renderGifPreview, 700);
   }
 
   async function renderGifPreview() {
-    clearTimeout(ed.gifTimer);
+    clearTimeout(gifState.timer);
     const file = ed.file;
     const key = gifKey();
-    const run = ++ed.gifRun;
+    const run = ++gifState.run;
     ui.gifPreview.hidden = false;
     ui.gifPreview.classList.add('stale');
     ui.gifMeta.textContent = 'Rendering the GIF…';
     try {
-      const blob = await trimGif(file, ed.start, ed.end, ui.pingpong.checked, { quiet: true });
-      if (run !== ed.gifRun) return; // settings changed or closed meanwhile
-      if (ed.gif) URL.revokeObjectURL(ed.gif.url);
-      ed.gif = { key, blob, url: URL.createObjectURL(blob) };
-      ui.gifImg.src = ed.gif.url;
+      const blob = await trimGif(file, ed.start, ed.end, trimmer.pingpong(), { quiet: true, crop: cropValue() });
+      if (run !== gifState.run) return; // settings changed or closed meanwhile
+      if (gifState.gif) URL.revokeObjectURL(gifState.gif.url);
+      gifState.gif = { key, blob, url: URL.createObjectURL(blob) };
+      ui.gifImg.src = gifState.gif.url;
       await ui.gifImg.decode().catch(() => {});
-      if (run !== ed.gifRun) return;
-      const played = (ed.end - ed.start) * (ui.pingpong.checked ? 2 : 1);
+      if (run !== gifState.run) return;
+      const played = (ed.end - ed.start) * (trimmer.pingpong() ? 2 : 1);
       ui.gifMeta.textContent = `${ui.gifImg.naturalWidth} × ${ui.gifImg.naturalHeight} · ${ui.gifFps.value} fps · ${played.toFixed(2)} s · ${formatBytes(blob.size)}`;
       ui.gifPreview.classList.remove('stale');
-      if (ed.gif.key !== gifKey()) gifSettingsChanged(); // moved on while rendering
+      if (gifState.gif.key !== gifKey()) gifSettingsChanged(); // moved on while rendering
     } catch (err) {
-      if (run === ed.gifRun) ui.gifMeta.textContent = `No GIF preview: ${err.message}`;
+      if (run === gifState.run) ui.gifMeta.textContent = `No GIF preview: ${err.message}`;
     }
   }
 
   ui.gifPreviewBtn.addEventListener('click', () => {
-    if (ed.gifWanted) return hideGifPreview();
-    ed.gifWanted = true;
+    if (gifState.wanted) return hideGifPreview();
+    gifState.wanted = true;
     ui.gifPreviewBtn.textContent = 'Hide GIF preview';
     renderGifPreview();
   });
   [ui.gifWidth, ui.gifFps].forEach((s) => s.addEventListener('change', gifSettingsChanged));
 
-  // Keep the preview looping inside the selection. With ping-pong it plays forward, then backwards:
-  // browsers can't play video in reverse, so the backward half steps back by seeking each frame.
-  function tick(now = performance.now()) {
-    cancelAnimationFrame(ed.raf);
-    if (!ed.file) return;
-    const dt = Math.min(0.1, (now - (ed.last || now)) / 1000);
-    ed.last = now;
-    if (ed.canSeek) {
-      const v = ui.video;
-      if (!ui.pingpong.checked) ed.reversing = false;
-      if (!ed.playing) {
-        if (!v.paused) v.pause();
-      } else if (ed.reversing) {
-        if (!v.paused) v.pause();
-        if (!v.seeking) {
-          const t = v.currentTime - dt;
-          if (t <= ed.start) {
-            ed.reversing = false;
-            v.currentTime = ed.start;
-            v.play().catch(() => {});
-          } else {
-            v.currentTime = t;
-          }
-        }
-      } else {
-        // The end is checked before resuming: at the very end of the clip the video stops by itself (no loop attribute).
-        const t = v.currentTime;
-        if (t < ed.start - 0.05) v.currentTime = ed.start;
-        else if (t >= ed.end - 0.02) {
-          if (ui.pingpong.checked) { ed.reversing = true; v.pause(); v.currentTime = ed.end; }
-          else v.currentTime = ed.start;
-        } else if (v.paused && !v.seeking) v.play().catch(() => {});
-      }
-      ui.head.style.left = `${(v.currentTime / ed.duration) * 100}%`;
-    }
-    ed.raf = requestAnimationFrame(tick);
-  }
-
-  // Pointer dragging: handles move one edge, the selection moves as a whole,
-  // the bare track seeks.
-  function timeAt(clientX) {
-    const r = ui.track.getBoundingClientRect();
-    return Math.max(0, Math.min(1, (clientX - r.left) / r.width)) * ed.duration;
-  }
-
-  ui.track.addEventListener('pointerdown', (e) => {
-    if (!ed.file || e.button > 0) return;
-    const target = e.target === ui.hStart ? 'start' : e.target === ui.hEnd ? 'end' : e.target === ui.sel ? 'move' : 'seek';
-    const t0 = timeAt(e.clientX);
-    const s0 = ed.start;
-    const e0 = ed.end;
-    ui.track.setPointerCapture(e.pointerId);
-    if (target === 'move') ui.sel.classList.add('dragging');
-
-    const move = (ev) => {
-      const t = timeAt(ev.clientX);
-      if (target === 'start') { setRange(t, ed.end, { seek: false }); if (ed.canSeek) ui.video.currentTime = ed.start; }
-      else if (target === 'end') { setRange(ed.start, t, { seek: false }); if (ed.canSeek) ui.video.currentTime = Math.max(ed.start, ed.end - 0.05); }
-      else if (target === 'move') {
-        const len = e0 - s0;
-        const s = Math.max(0, Math.min(ed.duration - len, s0 + (t - t0)));
-        setRange(s, s + len);
-      } else if (ed.canSeek) {
-        ui.video.currentTime = Math.max(ed.start, Math.min(ed.end, t));
-      }
-    };
-    const up = () => {
-      ui.sel.classList.remove('dragging');
-      ui.track.removeEventListener('pointermove', move);
-      ui.track.removeEventListener('pointerup', up);
-      ui.track.removeEventListener('pointercancel', up);
-      if (ed.canSeek && target !== 'seek') ui.video.currentTime = ed.start;
-    };
-    ui.track.addEventListener('pointermove', move);
-    ui.track.addEventListener('pointerup', up);
-    ui.track.addEventListener('pointercancel', up);
-    move(e);
-  });
-
-  [[ui.hStart, 'start'], [ui.hEnd, 'end']].forEach(([h, which]) => h.addEventListener('keydown', (e) => {
-    const step = e.shiftKey ? 0.5 : 0.05;
-    const delta = e.key === 'ArrowLeft' || e.key === 'ArrowDown' ? -step : e.key === 'ArrowRight' || e.key === 'ArrowUp' ? step : 0;
-    if (!delta) return;
-    e.preventDefault();
-    if (which === 'start') setRange(ed.start + delta, ed.end);
-    else setRange(ed.start, ed.end + delta);
-  }));
-
-  ui.start.addEventListener('change', () => setRange(Number(ui.start.value) || 0, ed.end));
-  ui.end.addEventListener('change', () => setRange(ed.start, Number(ui.end.value) || ed.duration));
-  ui.pingpong.addEventListener('change', () => setRange(ed.start, ed.end, { seek: false }));
-  $$('[data-preset]').forEach((b) => b.addEventListener('click', () => {
-    const p = b.dataset.preset;
-    setRange(0, p === 'all' ? ed.duration : Number(p));
-  }));
-
-  // ed.playing is what the button asks for; tick() starts, pauses and reverses the video to match.
-  ui.play.addEventListener('click', () => {
-    ed.playing = !ed.playing;
-    ui.play.textContent = ed.playing ? 'Pause' : 'Play';
-  });
-  ui.edClose.addEventListener('click', () => { closeEditor(); say(ui.msg, ''); });
-
-  const needsTrim = () => ed.start > 0.01 || ed.end < ed.duration - 0.01 || ui.pingpong.checked;
-
-  async function withEditorBusy(text, job) {
-    setBusy(true);
-    say(ui.msg, text, 'busy');
-    try { await job(); } catch (err) { say(ui.msg, err.message, 'bad'); } finally { setBusy(false); }
-  }
-
-  ui.toWebm.addEventListener('click', () => withEditorBusy('Converting…', async () => {
+  ui.toWebm.addEventListener('click', () => trimmer.busy('Converting…', async () => {
     const file = ed.file;
     let source = file;
     let trim = null;
-    if (isVideo(file)) {
-      if (needsTrim()) trim = { start: ed.start, end: ed.end, pingpong: ui.pingpong.checked };
-    } else if (needsTrim()) {
+    if (isVideoFile(file)) {
+      if (trimmer.needsTrim()) trim = { start: ed.start, end: ed.end, pingpong: trimmer.pingpong() };
+    } else if (trimmer.needsTrim()) {
       say(ui.msg, 'Trimming…', 'busy');
-      source = await trimGif(file, ed.start, ed.end, ui.pingpong.checked);
+      source = await trimGif(file, ed.start, ed.end, trimmer.pingpong());
       say(ui.msg, 'Converting…', 'busy');
     }
-    const { webm, info } = isVideo(file) ? await sourceToWebm(file, trim) : await toWebm(source, file.name);
+    const { webm, info } = isVideoFile(file) ? await sourceToWebm(file, trim, cropValue(), layoutValue()) : await toWebm(source, file.name, '', cropValue(), layoutValue());
     const name = webmName(file);
     results.clear();
     results.add({ name, blob: webm, meta: webmMeta(info, webm) });
     download(webm, name);
     say(ui.msg, `Saved ${name}.`, 'ok');
-  }));
+  }).then(describeLayout));
 
-  ui.toGif.addEventListener('click', () => withEditorBusy('Trimming…', async () => {
+  ui.toGif.addEventListener('click', () => trimmer.busy('Trimming…', async () => {
     const file = ed.file;
-    const gif = ed.gif?.key === gifKey() ? ed.gif.blob : await trimGif(file, ed.start, ed.end, ui.pingpong.checked);
+    const gif = gifState.gif?.key === gifKey() ? gifState.gif.blob : await trimGif(file, ed.start, ed.end, trimmer.pingpong(), { crop: cropValue() });
     const name = gifName(file);
     results.clear();
     results.add({ name, blob: gif, thumb: true, meta: formatBytes(gif.size) });
     download(gif, name);
     say(ui.msg, `Saved ${name}.`, 'ok');
-  }));
+  }).then(describeLayout));
 
-  checkServer();
+  checkApi(ui.server);
 })();

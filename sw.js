@@ -1,6 +1,6 @@
 // Offline support: network first, cached copy when offline.
 // Bump VERSION when the precache list changes.
-const VERSION = 'v4';
+const VERSION = 'v5';
 const CACHE = `converter-${VERSION}`;
 const PRECACHE = [
   '/',
@@ -15,7 +15,10 @@ const PRECACHE = [
   '/assets/js/core.js',
   '/assets/js/jpeg.js',
   '/assets/js/resize.js',
+  '/assets/js/trimmer.js',
+  '/assets/js/crop.js',
   '/assets/js/gif.js',
+  '/assets/js/video.js',
   '/assets/js/splitter.js',
   '/assets/js/grid.js',
   '/assets/icons/icon.svg',
@@ -26,6 +29,7 @@ const PRECACHE = [
   '/pages/converters/png-stickers.html',
   '/pages/converters/png-icons.html',
   '/pages/converters/gif-to-webm.html',
+  '/pages/converters/video-trim.html',
   '/pages/converters/image-splitter.html',
   '/pages/converters/grid-generator.html',
 ];

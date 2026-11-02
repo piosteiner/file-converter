@@ -27,11 +27,16 @@ import threading
 
 # ---- Import conversion helpers (your existing file) ----
 try:
-    from gif_to_webm import convert_gif_to_webm, check_ffmpeg, get_video_info
+    from gif_to_webm import convert_gif_to_webm, check_ffmpeg, get_video_info, crop_filter
     HAS_CONVERTER = True
 except ImportError:
     print("Warning: gif_to_webm.py not found. Please ensure it's in the same directory.")
     HAS_CONVERTER = False
+
+try:
+    from video_trim import describe as describe_video, trim_video
+except ImportError:
+    describe_video = trim_video = None
 
 app = Flask(__name__)
 
@@ -70,7 +75,27 @@ def selection_params(form):
     end = float(form['end']) if form.get('end') else None
     if start < 0 or (end is not None and end <= start):
         raise ValueError('Invalid time range')
-    return {'start': start, 'end': end, 'pingpong': str(form.get('pingpong', 'false')).lower() == 'true'}
+    return {'start': start, 'end': end, 'pingpong': str(form.get('pingpong', 'false')).lower() == 'true',
+            'crop': crop_param(form), 'layout': layout_param(form)}
+
+def layout_param(form):
+    """Optional sticker layout form field 'square|tight,size,x,y' as sticker_layout options, or None; raises ValueError."""
+    if not form.get('layout'):
+        return None
+    frame, size, x, y = form['layout'].split(',')
+    size, x, y = float(size), float(x), float(y)
+    if frame not in ('square', 'tight') or not (0.2 <= size <= 1 and 0 <= x <= 1 and 0 <= y <= 1):
+        raise ValueError('Invalid layout')
+    return {'square': frame == 'square', 'size': size, 'x': x, 'y': y}
+
+def crop_param(form):
+    """Optional crop form field 'x,y,w,h' (fractions of the frame) as a tuple, or None; raises ValueError."""
+    if not form.get('crop'):
+        return None
+    x, y, w, h = (float(v) for v in form['crop'].split(','))
+    if not (0 <= x < 1 and 0 <= y < 1 and 0.01 <= w <= 1 and 0.01 <= h <= 1 and x + w <= 1.0001 and y + h <= 1.0001):
+        raise ValueError('Invalid crop')
+    return (x, y, min(w, 1 - x), min(h, 1 - y))
 
 # A video open in the trimmer stays here as source_<uuid>.<ext> (id chosen by the browser), so GIF previews
 # and conversions don't upload it again. Removed by /api/source/<id>/delete or by cleanup_old_files() 1 hour
@@ -364,6 +389,77 @@ def delete_source(source_id):
             pass
     return jsonify({'deleted': bool(path)})
 
+@app.route('/api/source/<source_id>/info', methods=['GET', 'OPTIONS'])
+def source_info(source_id):
+    """Resolution, frame rate, bit rates and codecs of a kept video (video trimmer settings)."""
+    path = _source_path(source_id)
+    if not path:
+        return jsonify({'error': 'The uploaded video has expired', 'source_expired': True}), 404
+    info = describe_video(path) if describe_video else None
+    if not info:
+        return jsonify({'error': 'Could not read this video'}), 400
+    os.utime(path)
+    return jsonify(info)
+
+@app.route('/edit/trim-video', methods=['POST', 'OPTIONS'])
+def edit_trim_video():
+    """
+    Returns the part start…end of a video as MP4 (or MKV for a copy MP4 can't hold).
+    Form: source or file, start, end; optional copy=true, height, fps, bitrate (video kbit/s), audio=false, job.
+    """
+
+    cleanup_old_files()
+
+    try:
+        if not trim_video or not check_ffmpeg():
+            return jsonify({'error': 'FFmpeg or video trimmer unavailable'}), 500
+        try:
+            start_time = float(request.form.get('start', 0))
+            end_time = float(request.form.get('end', 0))
+            height = int(request.form.get('height') or 0) or None
+            fps = float(request.form.get('fps') or 0) or None
+            bitrate = int(request.form.get('bitrate') or 0) or None
+        except ValueError:
+            return jsonify({'error': 'Invalid parameters'}), 400
+        if start_time < 0 or end_time <= start_time:
+            return jsonify({'error': 'Invalid time range'}), 400
+        if (height and not 144 <= height <= 4320) or (fps and not 1 <= fps <= 240) or (bitrate and not 100 <= bitrate <= 200_000):
+            return jsonify({'error': 'Invalid resolution, frame rate or bit rate'}), 400
+
+        file_id = str(uuid.uuid4())
+        received = received_source(file_id)
+        if not isinstance(received, tuple) or len(received) != 3:
+            return received
+        in_path, secure_name, kept = received
+        if not is_video_file(secure_name):
+            if not kept: os.remove(in_path)
+            return jsonify({'error': 'Only MKV, MP4 or MOV files are allowed'}), 400
+
+        out_path = trim_video(
+            in_path, os.path.join(UPLOAD_FOLDER, f"{file_id}_trimmed"), start_time, end_time,
+            copy=str(request.form.get('copy', 'false')).lower() == 'true',
+            height=height, fps=fps, bitrate_kbps=bitrate,
+            keep_audio=str(request.form.get('audio', 'true')).lower() != 'false',
+            progress=progress_reporter(request.form.get('job'))
+        )
+
+        try:
+            if not kept: os.remove(in_path)
+        except:
+            pass
+        if not out_path:
+            return jsonify({'error': 'Trimming the video failed'}), 400
+
+        ext = Path(out_path).suffix
+        resp = send_file(os.path.abspath(out_path), mimetype='video/mp4' if ext == '.mp4' else 'video/x-matroska',
+                         as_attachment=True, download_name=f"{Path(secure_name).stem}_{start_time:.1f}-{end_time:.1f}s{ext}")
+        threading.Timer(120, lambda: os.path.exists(out_path) and os.remove(out_path)).start()
+        return resp
+
+    except Exception as e:
+        print("Video trim error:", e)
+        return jsonify({'error': 'Internal server error'}), 500
+
 @app.route('/edit/trim-gif', methods=['POST', 'OPTIONS'])
 def edit_trim_gif_blob():
     """
@@ -384,8 +480,9 @@ def edit_trim_gif_blob():
             ping_pong = str(request.form.get('pingpong', 'false')).lower() == 'true'
             gif_width = int(request.form.get('width', 480))
             gif_fps = int(request.form.get('fps', 15))
+            crop = crop_param(request.form)
         except ValueError:
-            return jsonify({'error': 'Invalid time parameters'}), 400
+            return jsonify({'error': 'Invalid time or crop parameters'}), 400
 
         if start_time < 0 or end_time <= start_time or (end_time - start_time) > 60:
             return jsonify({'error': 'Invalid time range. Must be 0 ≤ start < end ≤ start+60'}), 400
@@ -404,7 +501,7 @@ def edit_trim_gif_blob():
         if is_video_file(secure_name):
             # Video (e.g. OBS .mkv): one pass. Seek before -i so long recordings aren't decoded from the start,
             # shrink to a GIF-sized width and frame rate, then reverse on the small frames for ping-pong.
-            graph = f"fps={gif_fps},scale='min({gif_width},iw)':-2:flags=lanczos"
+            graph = f"{crop_filter(crop) + ',' if crop else ''}fps={gif_fps},scale='min({gif_width},iw)':-2:flags=lanczos"
             if ping_pong:
                 graph += ",split[fw][bw];[bw]reverse[rv];[fw][rv]concat=n=2:v=1:a=0"
             graph += ",split[s0][s1];[s0]palettegen=stats_mode=diff[p];[s1][p]paletteuse=dither=bayer:bayer_scale=5"
@@ -430,6 +527,7 @@ def edit_trim_gif_blob():
                 '-i', in_path,
                 '-ss', str(start_time),
                 '-t', str(duration),
+                *(['-vf', crop_filter(crop)] if crop else []),
                 temp
             ]
             
@@ -476,7 +574,7 @@ def edit_trim_gif_blob():
                 '-i', in_path,
                 '-ss', str(start_time),
                 '-t', str(duration),
-                '-vf', 'split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse',
+                '-vf', f"{crop_filter(crop) + ',' if crop else ''}split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse",
                 out_path
             ]
             print(f"🔧 Regular trim: {' '.join(cmd)}")
@@ -649,7 +747,7 @@ def convert_gif():
         try:
             selection = selection_params(request.form)
         except ValueError:
-            return jsonify({'error': 'Invalid time parameters'}), 400
+            return jsonify({'error': 'Invalid time, crop or layout parameters'}), 400
 
         if max_size_kb < 64 or max_size_kb > 2048:
             return jsonify({'error': 'Invalid max_size. Must be between 64 and 2048 KB'}), 400

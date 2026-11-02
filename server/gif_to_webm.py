@@ -35,6 +35,13 @@ def get_video_info(file_path):
     except (subprocess.CalledProcessError, json.JSONDecodeError):
         return None
 
+def crop_filter(crop):
+    """FFmpeg filter for crop = (x, y, w, h) as fractions of the frame; even sizes, as yuv420p needs.
+    The +0.01 absorbs float error (576 px sent as 0.53333 of 1080 is 575.996) without ever exceeding the frame."""
+    x, y, w, h = crop
+    return (f"crop=trunc(iw*{w:.6f}/2+0.01)*2:trunc(ih*{h:.6f}/2+0.01)*2"
+            f":trunc(iw*{x:.6f}+0.01):trunc(ih*{y:.6f}+0.01)")
+
 def calculate_scale_filter(width, height, mode='sticker'):
     """
     Calculate the scale filter based on mode and aspect ratio.
@@ -60,8 +67,41 @@ def calculate_scale_filter(width, height, mode='sticker'):
         # Taller than wide - make height 512
         return "scale=-2:512"
 
+def _even(v):
+    return max(2, int(round(v / 2)) * 2)
+
+def sticker_layout(width, height, mode='sticker', square=False, size=1.0, x=0.5, y=0.5):
+    """
+    Where the content goes in the sticker: (canvas_w, canvas_h, content_w, content_h, left, top).
+
+    The canvas is 100 x 100 for emoji; for stickers 512 x 512 (square) or the content's shape with its longer
+    side 512 (tight) — either way one side is exactly 512, as Telegram requires. The content is fitted into
+    size (0.2…1) of the canvas and placed at x, y (0 = left/top, 1 = right/bottom); the rest stays transparent.
+    Telegram shows every sticker inside the same square, so transparent space makes the content look smaller
+    and moves it within the bubble.
+    """
+    if mode == 'emoji':
+        cw = ch = 100
+    elif square:
+        cw = ch = 512
+    elif width >= height:
+        cw, ch = 512, _even(512 * height / width)
+    else:
+        cw, ch = _even(512 * width / height), 512
+    scale = min(cw * size / width, ch * size / height)
+    w, h = min(cw, _even(width * scale)), min(ch, _even(height * scale))
+    return cw, ch, w, h, int(round((cw - w) * x / 2)) * 2, int(round((ch - h) * y / 2)) * 2
+
+def layout_filter(width, height, mode='sticker', **layout):
+    """FFmpeg filters for sticker_layout: scale the content, then pad it with transparency to the canvas."""
+    cw, ch, w, h, left, top = sticker_layout(width, height, mode, **layout)
+    scaled = f"scale={w}:{h}:flags=lanczos"
+    if (w, h) == (cw, ch):
+        return scaled
+    return f"{scaled},format=yuva420p,pad={cw}:{ch}:{left}:{top}:color=black@0"
+
 def convert_gif_to_webm(input_path, output_path=None, mode='sticker', max_size_kb=256, progress=None,
-                        start=0.0, end=None, pingpong=False):
+                        start=0.0, end=None, pingpong=False, crop=None, layout=None):
     """
     Convert GIF (or a video such as an OBS .mkv) to WebM meeting strict requirements.
     
@@ -73,6 +113,8 @@ def convert_gif_to_webm(input_path, output_path=None, mode='sticker', max_size_k
         progress (callable, optional): progress(attempt, attempts, fraction), called while encoding
         start, end (float, optional): only use this part of the input, in seconds
         pingpong (bool): play the part forward, then backwards
+        crop (tuple, optional): (x, y, w, h) as fractions of the frame, cut out before scaling
+        layout (dict, optional): sticker_layout options (square, size, x, y); default: tight, full size
     
     Returns:
         bool: True if conversion successful, False otherwise
@@ -112,11 +154,16 @@ def convert_gif_to_webm(input_path, output_path=None, mode='sticker', max_size_k
         suffix = '_emoji' if mode == 'emoji' else '_sticker'
         output_path = input_file.with_name(f"{input_file.stem}{suffix}.webm")
     
-    # Calculate scale filter
-    scale_filter = calculate_scale_filter(width, height, mode)
+    # Calculate scale filter from the cropped size (the size ffmpeg's crop gives, see crop_filter)
+    if crop:
+        width, height = 2 * int(width * crop[2] / 2 + 0.01), 2 * int(height * crop[3] / 2 + 0.01)
+    if mode == 'preview':
+        scale_filter = calculate_scale_filter(width, height, mode)
+    else:
+        scale_filter = layout_filter(width, height, mode, **(layout or {}))
     
     # Build video filters
-    filters = [scale_filter]
+    filters = [crop_filter(crop), scale_filter] if crop else [scale_filter]
     
     # Limit FPS to 30
     source_fps = eval(video_stream.get('r_frame_rate', '30/1'))
