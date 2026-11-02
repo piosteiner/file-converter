@@ -121,7 +121,7 @@ function videoDuration(file) {
   });
 }
 
-// The trimmer on a page with the editor markup (#editor, #video, #track, #start, #end, …; #pingpong optional).
+// The trimmer on a page with the editor markup (#editor, #video, #track, #start, #end, …; #pingpong, #sound optional).
 // options:
 //   controls()            the page's own inputs, disabled with the trimmer's while it is busy
 //   initialEnd(duration)  where the selection ends when a file opens (default: the whole clip)
@@ -136,6 +136,7 @@ function createTrimmer({ controls = () => [], initialEnd = (d) => d, lengthHint 
     video: $('#video'), still: $('#still'),
     track: $('#track'), sel: $('#sel'), hStart: $('#hStart'), hEnd: $('#hEnd'), head: $('#head'), tlTotal: $('#tlTotal'),
     play: $('#play'), start: $('#start'), end: $('#end'), len: $('#len'), lenHint: $('#lenHint'), pingpong: $('#pingpong'),
+    sound: $('#sound'),
   };
   const ed = {
     file: null, duration: 0, start: 0, end: 0, videoUrl: null, stillUrl: null, canSeek: false, raf: 0,
@@ -188,14 +189,16 @@ function createTrimmer({ controls = () => [], initialEnd = (d) => d, lengthHint 
     onClose();
     Object.assign(ed, { file: null, duration: 0, videoUrl: null, stillUrl: null, canSeek: false, playing: true, reversing: false, last: 0 });
     ui.play.textContent = 'Pause';
+    setSound(false);
     ui.editor.hidden = true;
     ui.drop.hidden = false;
   }
 
   // Uploads the file for a WebM preview (a video stays on the server for later requests) and shows it.
   // fallbackDuration: length to trim by numbers if the preview fails; still: show the file itself then (GIFs).
+  // audio: preview with the video's sound, behind the #sound button (browsers only autoplay muted video).
   // Resolves to false if the trimmer was closed meanwhile.
-  async function open(file, { fallbackDuration = () => videoDuration(file), still = false } = {}) {
+  async function open(file, { fallbackDuration = () => videoDuration(file), still = false, audio = false } = {}) {
     close();
     ed.file = file;
     ui.edName.textContent = `${file.name} · ${formatBytes(file.size)}`;
@@ -214,6 +217,7 @@ function createTrimmer({ controls = () => [], initialEnd = (d) => d, lengthHint 
       form.append('job', t.job);
       const keep = isVideoFile(file) ? crypto.randomUUID() : null;
       if (keep) form.append('keep', keep);
+      if (audio) form.append('audio', 'true');
       const webm = await apiRequest('/convert/gif-to-webm', { body: form, as: 'blob', timeout: 300_000, onProgress: t.onProgress });
       t.stop();
       ed.source = keep;
@@ -258,6 +262,7 @@ function createTrimmer({ controls = () => [], initialEnd = (d) => d, lengthHint 
     }
     ui.head.hidden = !ed.canSeek;
     ui.play.hidden = !ed.canSeek;
+    if (ui.sound) ui.sound.hidden = !(audio && ed.canSeek);
     ui.tlTotal.textContent = `${ed.duration.toFixed(2)} s`;
     ui.start.max = ui.end.max = ed.duration.toFixed(2);
     setRange(0, Math.min(ed.duration, initialEnd(ed.duration)));
@@ -389,6 +394,15 @@ function createTrimmer({ controls = () => [], initialEnd = (d) => d, lengthHint 
 
   ui.edClose.addEventListener('click', () => { close(); say(ui.msg, ''); });
 
+  function setSound(on) {
+    ui.video.muted = !on;
+    if (ui.sound) {
+      ui.sound.textContent = on ? 'Sound on' : 'Sound off';
+      ui.sound.setAttribute('aria-pressed', String(on));
+    }
+  }
+  ui.sound?.addEventListener('click', () => setSound(ui.video.muted));
+
   // ed.playing is what the button asks for; tick() starts, pauses and reverses the video to match.
   ui.play.addEventListener('click', () => {
     ed.playing = !ed.playing;
@@ -397,6 +411,7 @@ function createTrimmer({ controls = () => [], initialEnd = (d) => d, lengthHint 
 
   return {
     ed, open, close, setBusy, setRange, withSource,
+    hideSound() { if (ui.sound) { setSound(false); ui.sound.hidden = true; } },
     pingpong,
     needsTrim: () => ed.start > 0.01 || ed.end < ed.duration - 0.01 || pingpong(),
     // Runs job with the editor disabled; errors end up in the message line.

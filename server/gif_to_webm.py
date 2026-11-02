@@ -101,7 +101,7 @@ def layout_filter(width, height, mode='sticker', **layout):
     return f"{scaled},format=yuva420p,pad={cw}:{ch}:{left}:{top}:color=black@0"
 
 def convert_gif_to_webm(input_path, output_path=None, mode='sticker', max_size_kb=256, progress=None,
-                        start=0.0, end=None, pingpong=False, crop=None, layout=None):
+                        start=0.0, end=None, pingpong=False, crop=None, layout=None, audio=False):
     """
     Convert GIF (or a video such as an OBS .mkv) to WebM meeting strict requirements.
     
@@ -115,6 +115,7 @@ def convert_gif_to_webm(input_path, output_path=None, mode='sticker', max_size_k
         pingpong (bool): play the part forward, then backwards
         crop (tuple, optional): (x, y, w, h) as fractions of the frame, cut out before scaling
         layout (dict, optional): sticker_layout options (square, size, x, y); default: tight, full size
+        audio (bool): preview mode only — keep the first audio track (Opus), for the video trimmer
     
     Returns:
         bool: True if conversion successful, False otherwise
@@ -192,6 +193,12 @@ def convert_gif_to_webm(input_path, output_path=None, mode='sticker', max_size_k
     # Combine filters
     video_filter = ",".join(filters)
     
+    has_audio = any(s.get('codec_type') == 'audio' for s in video_info.get('streams', []))
+    if audio and mode == 'preview' and has_audio and not pingpong:
+        audio_args = ['-map', '0:v:0', '-map', '0:a:0', '-c:a', 'libopus', '-b:a', '96k']
+    else:
+        audio_args = ['-an']
+
     # Try different CRF values to meet size requirement
     max_size_bytes = max_size_kb * 1024
     crf_values = [35, 40, 45, 50, 55, 60, 63]  # Start with reasonable quality
@@ -210,7 +217,7 @@ def convert_gif_to_webm(input_path, output_path=None, mode='sticker', max_size_k
             '-c:v', 'libvpx-vp9',           # VP9 codec
             '-crf', str(crf),               # Quality setting
             '-b:v', '0',                    # Use CRF mode
-            '-an',                          # Remove audio stream
+            *audio_args,                    # Remove audio stream (or keep it in a video trimmer preview)
             '-pix_fmt', 'yuva420p',         # Support transparency
             '-vf', video_filter,            # Video filters
             '-movflags', '+faststart',      # Optimize for streaming

@@ -342,7 +342,8 @@ def convert_gif_to_webm_preview():
             output_path=out_path,
             mode='preview',
             max_size_kb=50 * 1024 if is_video_file(file.filename) else 2048,  # higher cap for preview
-            progress=progress_reporter(request.form.get('job'))
+            progress=progress_reporter(request.form.get('job')),
+            audio=str(request.form.get('audio', 'false')).lower() == 'true'  # video trimmer: preview with sound
         )
 
         # Clean input, or keep a video for the trimmer's later requests

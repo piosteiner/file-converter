@@ -66,13 +66,15 @@
     results.clear();
     src = null;
     fillSettings();
-    if (!await trimmer.open(file)) return;
+    describeOutput();
+    if (!await trimmer.open(file, { audio: true })) return;
     if (ed.source) {
       try {
         src = await apiRequest(`/api/source/${ed.source}/info`, { timeout: 15_000 });
       } catch { /* settings stay at Original */ }
       if (ed.file !== file) return;
     }
+    if (src && !src.audio_codec) trimmer.hideSound();
     fillSettings();
     describeOutput();
   });
