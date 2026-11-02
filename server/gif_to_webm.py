@@ -60,16 +60,19 @@ def calculate_scale_filter(width, height, mode='sticker'):
         # Taller than wide - make height 512
         return "scale=-2:512"
 
-def convert_gif_to_webm(input_path, output_path=None, mode='sticker', max_size_kb=256, progress=None):
+def convert_gif_to_webm(input_path, output_path=None, mode='sticker', max_size_kb=256, progress=None,
+                        start=0.0, end=None, pingpong=False):
     """
-    Convert GIF to WebM meeting strict requirements.
+    Convert GIF (or a video such as an OBS .mkv) to WebM meeting strict requirements.
     
     Args:
-        input_path (str): Path to input GIF file
+        input_path (str): Path to input GIF or video file
         output_path (str, optional): Path for output WebM file
         mode (str): 'sticker' or 'emoji'
         max_size_kb (int): Maximum file size in KB
         progress (callable, optional): progress(attempt, attempts, fraction), called while encoding
+        start, end (float, optional): only use this part of the input, in seconds
+        pingpong (bool): play the part forward, then backwards
     
     Returns:
         bool: True if conversion successful, False otherwise
@@ -115,18 +118,29 @@ def convert_gif_to_webm(input_path, output_path=None, mode='sticker', max_size_k
     # Build video filters
     filters = [scale_filter]
     
-    # Limit duration to 3 seconds (except for preview mode)
-    if mode == 'preview':
-        duration_limit = duration  # Keep full duration for preview
-        print(f"🎥 PREVIEW MODE: Preserving full {duration:.2f}s duration")
-    else:
-        duration_limit = min(duration, 3.0)  # Limit to 3s for stickers
-        print(f"🎬 STICKER MODE: Limiting to {duration_limit:.2f}s")
-    
     # Limit FPS to 30
     source_fps = eval(video_stream.get('r_frame_rate', '30/1'))
     if source_fps > 30:
         filters.append("fps=30")
+
+    # Selected part of the input: seek before -i (fast on long videos), forward + reversed copy for ping-pong.
+    # Reversing after scaling keeps the buffered frames small.
+    start = max(0.0, float(start or 0))
+    part = (min(end, duration) if end else duration) - start
+    if part <= 0:
+        print(f"Error: selection {start:.2f}-{end}s is outside the {duration:.2f}s input")
+        return False
+    input_trim = ['-ss', f"{start:.3f}", '-t', f"{part:.3f}"] if start > 0 or part < duration else []
+    if pingpong:
+        filters.append("split[fw][bw];[bw]reverse[rv];[fw][rv]concat=n=2:v=1:a=0")
+        part *= 2
+    # Limit duration to 3 seconds (except for preview mode)
+    if mode == 'preview':
+        duration_limit = part
+        print(f"🎥 PREVIEW MODE: Preserving full {duration_limit:.2f}s duration")
+    else:
+        duration_limit = min(part, 3.0)
+        print(f"🎬 STICKER MODE: Limiting to {duration_limit:.2f}s")
     
     # Combine filters
     video_filter = ",".join(filters)
@@ -143,6 +157,7 @@ def convert_gif_to_webm(input_path, output_path=None, mode='sticker', max_size_k
         # Build FFmpeg command
         cmd = [
             'ffmpeg',
+            *input_trim,
             '-i', input_path,
             '-t', str(duration_limit),      # Limit duration to 3 seconds
             '-c:v', 'libvpx-vp9',           # VP9 codec
@@ -153,6 +168,7 @@ def convert_gif_to_webm(input_path, output_path=None, mode='sticker', max_size_k
             '-vf', video_filter,            # Video filters
             '-movflags', '+faststart',      # Optimize for streaming
             *(['-g', '10'] if mode == 'preview' else []),  # Frequent keyframes: smooth seeking (ping-pong preview)
+            *(['-deadline', 'realtime', '-cpu-used', '8'] if mode == 'preview' else []),  # Fast: previews of long videos
             '-progress', 'pipe:1', '-nostats',  # Machine-readable progress on stdout
             '-f', 'webm',                   # Force WebM format
             '-y',                           # Overwrite output

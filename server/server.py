@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Flask Server for GIF to WebM Conversion + GIF Editor + Image to Icon Converter
+Flask Server for GIF/Video to WebM Conversion + GIF Editor + Image to Icon Converter
+(videos: .mkv/.mp4/.mov screen recordings, e.g. from OBS)
 - Keeps existing /api/* endpoints (JSON responses)
 - Adds blob-returning endpoints used by the integrated editor:
     * POST /convert/gif-to-webm  -> returns video/webm (preview)
@@ -49,11 +50,65 @@ def add_no_cache_headers(response):
 UPLOAD_FOLDER = 'temp_uploads'
 MAX_FILE_SIZE = 100 * 1024 * 1024
 ALLOWED_EXTENSIONS = {'gif'}
+ALLOWED_VIDEO_EXTENSIONS = {'mkv', 'mp4', 'mov'}  # screen recordings, e.g. from OBS
 ALLOWED_IMAGE_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'tiff', 'svg', 'ico'}
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 def allowed_file(filename: str) -> bool:
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def is_video_file(filename: str) -> bool:
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_VIDEO_EXTENSIONS
+
+def allowed_source_file(filename: str) -> bool:
+    """GIF or video: what the GIF/video → WebM and → GIF endpoints take."""
+    return allowed_file(filename) or is_video_file(filename)
+
+def selection_params(form):
+    """Optional start/end/pingpong form fields as convert_gif_to_webm kwargs; raises ValueError."""
+    start = float(form.get('start') or 0)
+    end = float(form['end']) if form.get('end') else None
+    if start < 0 or (end is not None and end <= start):
+        raise ValueError('Invalid time range')
+    return {'start': start, 'end': end, 'pingpong': str(form.get('pingpong', 'false')).lower() == 'true'}
+
+# A video open in the trimmer stays here as source_<uuid>.<ext> (id chosen by the browser), so GIF previews
+# and conversions don't upload it again. Removed by /api/source/<id>/delete or by cleanup_old_files() 1 hour
+# after its last use (os.utime on each use bumps the ctime that cleanup checks).
+def _source_path(source_id, ext=None):
+    try:
+        source_id = uuid.UUID(source_id)
+    except (ValueError, TypeError, AttributeError):
+        return None
+    if ext:
+        return os.path.join(UPLOAD_FOLDER, f"source_{source_id}.{ext}") if ext in ALLOWED_VIDEO_EXTENSIONS else None
+    for ext in ALLOWED_VIDEO_EXTENSIONS:
+        path = os.path.join(UPLOAD_FOLDER, f"source_{source_id}.{ext}")
+        if os.path.exists(path):
+            return path
+    return None
+
+def received_source(file_id):
+    """Input of a request: the kept video named by form field 'source', else the uploaded 'file'
+    (kept as form field 'keep' if that is given and it is a video).
+    Returns (path, secure name, kept) — a kept source must not be deleted after use —
+    or a Flask error response."""
+    if request.form.get('source'):
+        path = _source_path(request.form['source'])
+        if not path:
+            return jsonify({'error': 'The uploaded video has expired', 'source_expired': True}), 404
+        os.utime(path)
+        return path, secure_filename(request.form.get('name') or os.path.basename(path)), True
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+    f = request.files['file']
+    if not f.filename or not allowed_source_file(f.filename):
+        return jsonify({'error': 'Only GIF, MKV, MP4 or MOV files are allowed'}), 400
+    secure_name = secure_filename(f.filename)
+    keep = _source_path(request.form.get('keep'), secure_name.rsplit('.', 1)[-1].lower()) if is_video_file(secure_name) else None
+    path = keep or os.path.join(UPLOAD_FOLDER, f"{file_id}_{secure_name}")
+    f.save(path)
+    return path, secure_name, bool(keep)
 
 def allowed_image_file(filename: str) -> bool:
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_IMAGE_EXTENSIONS
@@ -243,8 +298,8 @@ def convert_gif_to_webm_preview():
             return jsonify({'error': 'No file provided'}), 400
 
         file = request.files['file']
-        if not file.filename or not allowed_file(file.filename):
-            return jsonify({'error': 'Only GIF files are allowed'}), 400
+        if not file.filename or not allowed_source_file(file.filename):
+            return jsonify({'error': 'Only GIF, MKV, MP4 or MOV files are allowed'}), 400
 
         if request.content_length is None or request.content_length > MAX_FILE_SIZE:
             return jsonify({'error': f'File too large. Max {MAX_FILE_SIZE // (1024*1024)}MB'}), 400
@@ -256,18 +311,22 @@ def convert_gif_to_webm_preview():
 
         file.save(in_path)
 
-        # Use 'preview' mode; allow generous size for quality
+        # Use 'preview' mode; allow generous size for quality (videos run longer than GIFs)
         ok = convert_gif_to_webm(
             input_path=in_path,
             output_path=out_path,
             mode='preview',
-            max_size_kb=2048,  # higher cap for preview
+            max_size_kb=50 * 1024 if is_video_file(file.filename) else 2048,  # higher cap for preview
             progress=progress_reporter(request.form.get('job'))
         )
 
-        # Clean input
+        # Clean input, or keep a video for the trimmer's later requests
+        keep = _source_path(request.form.get('keep'), secure_name.rsplit('.', 1)[-1].lower()) if ok and is_video_file(secure_name) else None
         try:
-            os.remove(in_path)
+            if keep:
+                os.replace(in_path, keep)
+            else:
+                os.remove(in_path)
         except:
             pass
 
@@ -294,6 +353,17 @@ def convert_gif_to_webm_preview():
         print("Preview conversion error:", e)
         return jsonify({'error': 'Internal server error'}), 500
 
+@app.route('/api/source/<source_id>/delete', methods=['POST', 'OPTIONS'])
+def delete_source(source_id):
+    """Forget a kept video (trimmer closed). POST so navigator.sendBeacon can call it on page exit."""
+    path = _source_path(source_id)
+    if path:
+        try:
+            os.remove(path)
+        except FileNotFoundError:
+            pass
+    return jsonify({'deleted': bool(path)})
+
 @app.route('/edit/trim-gif', methods=['POST', 'OPTIONS'])
 def edit_trim_gif_blob():
     """
@@ -307,33 +377,49 @@ def edit_trim_gif_blob():
         if not check_ffmpeg():
             return jsonify({'error': 'FFmpeg not found on server'}), 500
 
-        if 'file' not in request.files:
-            return jsonify({'error': 'No file provided'}), 400
-
-        f = request.files['file']
-        if not f.filename or not allowed_file(f.filename):
-            return jsonify({'error': 'Only GIF files are allowed'}), 400
-
         # Params (front-end used keys: 'start' and 'end' in your integrated JS)
         try:
             start_time = float(request.form.get('start', request.form.get('start_time', 0)))
             end_time = float(request.form.get('end', request.form.get('end_time', 3)))
             ping_pong = str(request.form.get('pingpong', 'false')).lower() == 'true'
+            gif_width = int(request.form.get('width', 480))
+            gif_fps = int(request.form.get('fps', 15))
         except ValueError:
             return jsonify({'error': 'Invalid time parameters'}), 400
 
         if start_time < 0 or end_time <= start_time or (end_time - start_time) > 60:
             return jsonify({'error': 'Invalid time range. Must be 0 ≤ start < end ≤ start+60'}), 400
+        if not 16 <= gif_width <= 1280 or not 1 <= gif_fps <= 50:
+            return jsonify({'error': 'Invalid width or frame rate'}), 400
 
         file_id = str(uuid.uuid4())
-        secure_name = secure_filename(f.filename)
-        in_path = os.path.join(UPLOAD_FOLDER, f"{file_id}_{secure_name}")
         out_path = os.path.join(UPLOAD_FOLDER, f"{file_id}_trimmed.gif")
-        f.save(in_path)
+        received = received_source(file_id)
+        if not isinstance(received, tuple) or len(received) != 3:
+            return received
+        in_path, secure_name, kept = received
 
         duration = end_time - start_time
 
-        if ping_pong:
+        if is_video_file(secure_name):
+            # Video (e.g. OBS .mkv): one pass. Seek before -i so long recordings aren't decoded from the start,
+            # shrink to a GIF-sized width and frame rate, then reverse on the small frames for ping-pong.
+            graph = f"fps={gif_fps},scale='min({gif_width},iw)':-2:flags=lanczos"
+            if ping_pong:
+                graph += ",split[fw][bw];[bw]reverse[rv];[fw][rv]concat=n=2:v=1:a=0"
+            graph += ",split[s0][s1];[s0]palettegen=stats_mode=diff[p];[s1][p]paletteuse=dither=bayer:bayer_scale=5"
+            cmd = [
+                'ffmpeg', '-y',
+                '-ss', str(start_time),
+                '-t', str(duration),
+                '-i', in_path,
+                '-an',
+                '-vf', graph,
+                out_path
+            ]
+            ok = run_ffmpeg_command(cmd)
+
+        elif ping_pong:
             # SIMPLIFIED PING-PONG: More reliable approach
             temp = os.path.join(UPLOAD_FOLDER, f"{file_id}_temp.gif")
             temp_reversed = os.path.join(UPLOAD_FOLDER, f"{file_id}_reversed.gif")
@@ -397,7 +483,8 @@ def edit_trim_gif_blob():
             ok = run_ffmpeg_command(cmd)
 
         try:
-            os.remove(in_path)
+            if not kept:
+                os.remove(in_path)
         except:
             pass
 
@@ -553,19 +640,16 @@ def convert_gif():
         if not check_ffmpeg():
             return jsonify({'error': 'FFmpeg not found on server'}), 500
 
-        if 'file' not in request.files:
-            return jsonify({'error': 'No file provided'}), 400
-        file = request.files['file']
-        if file.filename == '':
-            return jsonify({'error': 'No file selected'}), 400
-        if not allowed_file(file.filename):
-            return jsonify({'error': 'Only GIF files are allowed'}), 400
         if request.content_length is None or request.content_length > MAX_FILE_SIZE:
             return jsonify({'error': f'File too large. Maximum size: {MAX_FILE_SIZE // (1024*1024)}MB'}), 400
 
         max_size_kb = int(request.form.get('max_size', 256))
         mode = request.form.get('mode', 'sticker')  # sticker, emoji, or preview
         starting_crf = int(request.form.get('crf', 35))
+        try:
+            selection = selection_params(request.form)
+        except ValueError:
+            return jsonify({'error': 'Invalid time parameters'}), 400
 
         if max_size_kb < 64 or max_size_kb > 2048:
             return jsonify({'error': 'Invalid max_size. Must be between 64 and 2048 KB'}), 400
@@ -573,10 +657,11 @@ def convert_gif():
             return jsonify({'error': 'Invalid mode. Must be "sticker", "emoji", or "preview"'}), 400
 
         file_id = str(uuid.uuid4())
-        secure_name = secure_filename(file.filename)
-        input_path = os.path.join(UPLOAD_FOLDER, f"{file_id}_{secure_name}")
         output_path = os.path.join(UPLOAD_FOLDER, f"{file_id}_output.webm")
-        file.save(input_path)
+        received = received_source(file_id)
+        if not isinstance(received, tuple) or len(received) != 3:
+            return received
+        input_path, secure_name, kept = received
 
         print(f"Converting {input_path} -> {output_path} (mode={mode}, max_size={max_size_kb}KB, crf={starting_crf})")
 
@@ -588,7 +673,8 @@ def convert_gif():
             output_path=output_path,
             mode=mode,
             max_size_kb=max_size_kb if mode != 'preview' else 2048,
-            progress=progress_reporter(request.form.get('job'))
+            progress=progress_reporter(request.form.get('job')),
+            **selection
         )
 
         if ok and os.path.exists(output_path):
@@ -624,14 +710,15 @@ def convert_gif():
                         data['output_duration'] = float(output_info.get('format', {}).get('duration', 0))
                         break
 
-            try: os.remove(input_path)
+            try:
+                if not kept: os.remove(input_path)
             except: pass
 
             return jsonify(data)
 
         # fail path
         try:
-            os.remove(input_path)
+            if not kept: os.remove(input_path)
             if os.path.exists(output_path): os.remove(output_path)
         except:
             pass
@@ -783,8 +870,8 @@ def convert_bulk():
         for file in files:
             if not file.filename:
                 continue
-            if not allowed_file(file.filename):
-                results.append({'filename': file.filename, 'success': False, 'error': 'Not a GIF file'})
+            if not allowed_source_file(file.filename):
+                results.append({'filename': file.filename, 'success': False, 'error': 'Not a GIF or video file'})
                 failed += 1
                 continue
 

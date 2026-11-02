@@ -1,4 +1,4 @@
-// GIF → WebM via api.piogino.ch. One GIF opens the trimmer, several convert directly.
+// GIF or video (OBS .mkv, .mp4, .mov) → WebM / GIF via api.piogino.ch. One file opens the trimmer, several convert directly.
 
 (function () {
   const API = 'https://api.piogino.ch';
@@ -13,11 +13,13 @@
     video: $('#video'), still: $('#still'),
     track: $('#track'), sel: $('#sel'), hStart: $('#hStart'), hEnd: $('#hEnd'), head: $('#head'), tlTotal: $('#tlTotal'),
     play: $('#play'), start: $('#start'), end: $('#end'), len: $('#len'), lenHint: $('#lenHint'), pingpong: $('#pingpong'),
-    toWebm: $('#toWebm'), toGif: $('#toGif'),
+    toWebm: $('#toWebm'), toGif: $('#toGif'), gifOpts: $('#gifOpts'), gifWidth: $('#gifWidth'), gifFps: $('#gifFps'),
+    gifPreviewBtn: $('#gifPreviewBtn'), gifPreview: $('#gifPreview'), gifImg: $('#gifImg'), gifMeta: $('#gifMeta'),
   };
   const results = new Results($('#results'), { zipName: 'webm.zip' });
   const mode = () => $('input[name="mode"]:checked').value;
   const isGif = (f) => /gif$/i.test(f.type) || /\.gif$/i.test(f.name);
+  const isVideo = (f) => /\.(mkv|mp4|mov)$/i.test(f.name);
 
   ui.maxSize.addEventListener('input', () => { ui.maxSizeOut.value = `${ui.maxSize.value} KB`; });
 
@@ -40,9 +42,9 @@
       }
       xhr.onload = async () => {
         if (xhr.status < 200 || xhr.status >= 300) {
-          let detail = '';
-          try { detail = JSON.parse(as === 'blob' ? await xhr.response.text() : xhr.responseText).error || ''; } catch { /* not JSON */ }
-          reject(new Error(detail || `Server answered ${xhr.status}.`));
+          let data = {};
+          try { data = JSON.parse(as === 'blob' ? await xhr.response.text() : xhr.responseText); } catch { /* not JSON */ }
+          reject(Object.assign(new Error(data.error || `Server answered ${xhr.status}.`), { data }));
         } else if (as === 'blob') {
           resolve(xhr.response);
         } else {
@@ -125,34 +127,94 @@
     } }, 'Try again'));
   }
 
+  // The video open in the trimmer stays on the server (ed.source) after its preview, so later requests send
+  // only its id. build(form) adds the other fields; if the server has dropped the video (1 hour unused),
+  // upload it again and let the server keep that copy.
+  async function withSource(file, build, send) {
+    if (ed.source && ed.file === file) {
+      const form = build(new FormData());
+      form.append('source', ed.source);
+      form.append('name', file.name);
+      try { return await send(form); } catch (err) {
+        if (!err.data?.source_expired) throw err;
+        ed.source = null;
+      }
+    }
+    const form = build(new FormData());
+    form.append('file', file, file.name);
+    const keep = isVideo(file) && ed.file === file ? crypto.randomUUID() : null;
+    if (keep) form.append('keep', keep);
+    let result;
+    try { result = await send(form); } catch (err) {
+      if (keep) navigator.sendBeacon(`${API}/api/source/${keep}/delete`);
+      throw err;
+    }
+    if (keep && ed.file === file) ed.source = keep;
+    else if (keep) navigator.sendBeacon(`${API}/api/source/${keep}/delete`); // closed meanwhile
+    return result;
+  }
+
+  function forgetSource() {
+    if (!ed.source) return;
+    navigator.sendBeacon(`${API}/api/source/${ed.source}/delete`);
+    ed.source = null;
+  }
+  window.addEventListener('pagehide', forgetSource);
+
   async function toWebm(blob, filename, label = '') {
     const t = tracker(label);
     try {
       const form = new FormData();
       form.append('file', blob, filename);
-      form.append('max_size', ui.maxSize.value);
-      form.append('mode', mode());
-      form.append('job', t.job);
-      const info = await request('/api/convert', { body: form, onProgress: t.onProgress });
-      if (!info.success) throw new Error(info.error || 'Conversion failed.');
-      const webm = await request(`/api/download/${encodeURIComponent(info.download_id)}`, { as: 'blob', timeout: 60_000, onProgress: t.onProgress });
-      return { webm, info };
+      return await convertForm(form, t, null);
     } finally {
       t.stop();
     }
   }
 
-  async function trimGif(file, start, end, pingpong) {
-    const t = tracker('', { verb: 'Trimming', poll: false });
+  // Video in the trimmer: same as toWebm, but from the kept copy on the server.
+  // trim: { start, end, pingpong } — the server cuts videos itself (a GIF in between would cost quality).
+  async function sourceToWebm(file, trim) {
+    const t = tracker('');
     try {
-      const form = new FormData();
-      form.append('file', file, file.name);
-      form.append('start', start.toFixed(3));
-      form.append('end', end.toFixed(3));
-      if (pingpong) form.append('pingpong', 'true');
-      return await request('/edit/trim-gif', { body: form, as: 'blob', onProgress: t.onProgress });
+      return await withSource(file, (form) => form, (form) => convertForm(form, t, trim));
     } finally {
       t.stop();
+    }
+  }
+
+  // Adds the conversion settings to form (which holds the file or source id), converts and downloads the WebM.
+  async function convertForm(form, t, trim) {
+    form.append('max_size', ui.maxSize.value);
+    form.append('mode', mode());
+    form.append('job', t.job);
+    if (trim) {
+      form.append('start', trim.start.toFixed(3));
+      form.append('end', trim.end.toFixed(3));
+      if (trim.pingpong) form.append('pingpong', 'true');
+    }
+    const info = await request('/api/convert', { body: form, onProgress: t.onProgress });
+    if (!info.success) throw new Error(info.error || 'Conversion failed.');
+    const webm = await request(`/api/download/${encodeURIComponent(info.download_id)}`, { as: 'blob', timeout: 60_000, onProgress: t.onProgress });
+    return { webm, info };
+  }
+
+  // GIF of the selection. Videos also take the GIF width and frame rate. quiet: no progress in the message line.
+  async function trimGif(file, start, end, pingpong, { quiet = false } = {}) {
+    const t = quiet ? null : tracker('', { verb: 'Trimming', poll: false });
+    try {
+      return await withSource(file, (form) => {
+        form.append('start', start.toFixed(3));
+        form.append('end', end.toFixed(3));
+        if (pingpong) form.append('pingpong', 'true');
+        if (isVideo(file)) {
+          form.append('width', ui.gifWidth.value);
+          form.append('fps', ui.gifFps.value);
+        }
+        return form;
+      }, (form) => request('/edit/trim-gif', { body: form, as: 'blob', onProgress: t?.onProgress }));
+    } finally {
+      t?.stop();
     }
   }
 
@@ -166,8 +228,8 @@
   // ---------- drop ----------
 
   setupDrop(ui.drop, async (files) => {
-    const gifs = files.filter(isGif);
-    if (!gifs.length) return say(ui.msg, 'Only GIF files work here.', 'bad');
+    const gifs = files.filter((f) => isGif(f) || isVideo(f));
+    if (!gifs.length) return say(ui.msg, 'Only GIF, MKV, MP4 and MOV files work here.', 'bad');
     const big = gifs.find((f) => f.size > MAX_UPLOAD);
     if (big) return say(ui.msg, `${big.name} is larger than 100 MB.`, 'bad');
     if (gifs.length === 1) return openEditor(gifs[0]);
@@ -195,7 +257,8 @@
 
   const ed = {
     file: null, duration: 0, start: 0, end: 0, videoUrl: null, stillUrl: null, canSeek: false, raf: 0,
-    playing: true, reversing: false, last: 0,
+    playing: true, reversing: false, last: 0, source: null,
+    gif: null, gifWanted: false, gifTimer: 0, gifRun: 0, // GIF preview: { key, blob, url }, shown while gifWanted
   };
 
   // Total play time of a GIF from its frame delays, without decoding images.
@@ -226,6 +289,20 @@
     return total / 100;
   }
 
+  // Length of a video from the browser's own player; 0 if it can't read the container (MKV in some browsers).
+  function videoDuration(file) {
+    return new Promise((resolve) => {
+      const v = document.createElement('video');
+      const url = URL.createObjectURL(file);
+      const done = (d) => { clearTimeout(timer); URL.revokeObjectURL(url); v.removeAttribute('src'); resolve(Number.isFinite(d) ? d : 0); };
+      const timer = setTimeout(() => done(0), 5000);
+      v.preload = 'metadata';
+      v.onloadedmetadata = () => done(v.duration);
+      v.onerror = () => done(0);
+      v.src = url;
+    });
+  }
+
   function closeEditor() {
     cancelAnimationFrame(ed.raf);
     ui.video.pause();
@@ -233,6 +310,8 @@
     ui.video.load();
     if (ed.videoUrl) URL.revokeObjectURL(ed.videoUrl);
     if (ed.stillUrl) URL.revokeObjectURL(ed.stillUrl);
+    forgetSource();
+    hideGifPreview();
     Object.assign(ed, { file: null, duration: 0, videoUrl: null, stillUrl: null, canSeek: false, playing: true, reversing: false, last: 0 });
     ui.play.textContent = 'Pause';
     ui.editor.hidden = true;
@@ -248,18 +327,23 @@
     ui.editor.hidden = false;
     ui.video.hidden = true;
     ui.still.hidden = true;
+    ui.gifOpts.hidden = !isVideo(file);
+    ui.toGif.textContent = isVideo(file) ? 'Save as GIF' : 'Save trimmed GIF';
     setBusy(true);
 
-    const localDuration = await gifDuration(file).catch(() => 0);
+    const localDuration = await (isVideo(file) ? videoDuration(file) : gifDuration(file)).catch(() => 0);
     let previewError = null;
     const t = tracker('Preparing the preview', { verb: 'Encoding' });
     try {
       const form = new FormData();
       form.append('file', file, file.name);
       form.append('job', t.job);
-      const webm = await request('/convert/gif-to-webm', { body: form, as: 'blob', timeout: 120_000, onProgress: t.onProgress });
+      const keep = isVideo(file) ? crypto.randomUUID() : null;
+      if (keep) form.append('keep', keep);
+      const webm = await request('/convert/gif-to-webm', { body: form, as: 'blob', timeout: 300_000, onProgress: t.onProgress });
       t.stop();
-      if (ed.file !== file) return; // closed meanwhile
+      ed.source = keep;
+      if (ed.file !== file) { forgetSource(); return; } // closed meanwhile
       ed.videoUrl = URL.createObjectURL(webm);
       await new Promise((resolve, reject) => {
         const t = setTimeout(() => reject(new Error('timeout')), 10_000);
@@ -282,17 +366,19 @@
     } else {
       // No scrubbing, but trimming by numbers and handles still works.
       ed.duration = localDuration;
-      ed.stillUrl = URL.createObjectURL(file);
-      ui.still.src = ed.stillUrl;
-      ui.still.hidden = false;
+      if (!isVideo(file)) {
+        ed.stillUrl = URL.createObjectURL(file);
+        ui.still.src = ed.stillUrl;
+        ui.still.hidden = false;
+      }
     }
     setBusy(false);
 
     if (!ed.duration) {
-      say(ui.msg, previewError ? `No preview: ${previewError.message}` : 'Could not read the length of this GIF.', 'bad');
+      say(ui.msg, previewError ? `No preview: ${previewError.message}` : 'Could not read the length of this file.', 'bad');
       ed.duration = 3;
     } else if (previewError) {
-      say(ui.msg, `Showing the GIF itself — ${previewError.message} Trim with the handles or numbers.`, '');
+      say(ui.msg, `${isVideo(ed.file) ? 'No preview' : 'Showing the GIF itself'} — ${previewError.message} Trim with the handles or numbers.`, '');
     } else {
       say(ui.msg, '');
     }
@@ -305,7 +391,7 @@
   }
 
   function setBusy(busy) {
-    [ui.toWebm, ui.toGif, ui.start, ui.end, ui.pingpong, ...$$('[data-preset]')].forEach((b) => { b.disabled = busy; });
+    [ui.toWebm, ui.toGif, ui.start, ui.end, ui.pingpong, ui.gifWidth, ui.gifFps, ui.gifPreviewBtn, ...$$('[data-preset]')].forEach((b) => { b.disabled = busy; });
   }
 
   function setRange(start, end, { seek = true } = {}) {
@@ -330,7 +416,67 @@
       ? `Longer than ${LIMIT_S} s${ui.pingpong.checked ? ' with ping-pong' : ''} — the WebM will be cut at ${LIMIT_S} s.`
       : '';
     if (seek && ed.canSeek && (ui.video.currentTime < start || ui.video.currentTime > end)) ui.video.currentTime = start;
+    gifSettingsChanged();
   }
+
+  // ---------- GIF preview (videos) ----------
+  // Renders the real GIF on the server, so width, frame rate, colours and file size are what Save as GIF gives.
+  // Once shown, it follows the selection and settings, re-rendering after a short pause.
+
+  const gifKey = () => [ed.start.toFixed(3), ed.end.toFixed(3), ui.pingpong.checked, ui.gifWidth.value, ui.gifFps.value].join('|');
+  const gifName = (file) => `${stem(file.name)}_${ed.start.toFixed(1)}-${ed.end.toFixed(1)}s${ui.pingpong.checked ? '_pingpong' : ''}.gif`;
+
+  function hideGifPreview() {
+    clearTimeout(ed.gifTimer);
+    ed.gifRun++;
+    if (ed.gif) URL.revokeObjectURL(ed.gif.url);
+    ed.gif = null;
+    ed.gifWanted = false;
+    ui.gifPreview.hidden = true;
+    ui.gifImg.removeAttribute('src');
+    ui.gifPreviewBtn.textContent = 'Preview GIF';
+  }
+
+  function gifSettingsChanged() {
+    if (!ed.gifWanted || ed.gif?.key === gifKey()) return;
+    ui.gifMeta.textContent = 'Settings changed — updating…';
+    ui.gifPreview.classList.add('stale');
+    clearTimeout(ed.gifTimer);
+    ed.gifTimer = setTimeout(renderGifPreview, 700);
+  }
+
+  async function renderGifPreview() {
+    clearTimeout(ed.gifTimer);
+    const file = ed.file;
+    const key = gifKey();
+    const run = ++ed.gifRun;
+    ui.gifPreview.hidden = false;
+    ui.gifPreview.classList.add('stale');
+    ui.gifMeta.textContent = 'Rendering the GIF…';
+    try {
+      const blob = await trimGif(file, ed.start, ed.end, ui.pingpong.checked, { quiet: true });
+      if (run !== ed.gifRun) return; // settings changed or closed meanwhile
+      if (ed.gif) URL.revokeObjectURL(ed.gif.url);
+      ed.gif = { key, blob, url: URL.createObjectURL(blob) };
+      ui.gifImg.src = ed.gif.url;
+      await ui.gifImg.decode().catch(() => {});
+      if (run !== ed.gifRun) return;
+      const played = (ed.end - ed.start) * (ui.pingpong.checked ? 2 : 1);
+      ui.gifMeta.textContent = `${ui.gifImg.naturalWidth} × ${ui.gifImg.naturalHeight} · ${ui.gifFps.value} fps · ${played.toFixed(2)} s · ${formatBytes(blob.size)}`;
+      ui.gifPreview.classList.remove('stale');
+      if (ed.gif.key !== gifKey()) gifSettingsChanged(); // moved on while rendering
+    } catch (err) {
+      if (run === ed.gifRun) ui.gifMeta.textContent = `No GIF preview: ${err.message}`;
+    }
+  }
+
+  ui.gifPreviewBtn.addEventListener('click', () => {
+    if (ed.gifWanted) return hideGifPreview();
+    ed.gifWanted = true;
+    ui.gifPreviewBtn.textContent = 'Hide GIF preview';
+    renderGifPreview();
+  });
+  [ui.gifWidth, ui.gifFps].forEach((s) => s.addEventListener('change', gifSettingsChanged));
 
   // Keep the preview looping inside the selection. With ping-pong it plays forward, then backwards:
   // browsers can't play video in reverse, so the backward half steps back by seeking each frame.
@@ -446,12 +592,15 @@
   ui.toWebm.addEventListener('click', () => withEditorBusy('Converting…', async () => {
     const file = ed.file;
     let source = file;
-    if (needsTrim()) {
+    let trim = null;
+    if (isVideo(file)) {
+      if (needsTrim()) trim = { start: ed.start, end: ed.end, pingpong: ui.pingpong.checked };
+    } else if (needsTrim()) {
       say(ui.msg, 'Trimming…', 'busy');
       source = await trimGif(file, ed.start, ed.end, ui.pingpong.checked);
       say(ui.msg, 'Converting…', 'busy');
     }
-    const { webm, info } = await toWebm(source, file.name);
+    const { webm, info } = isVideo(file) ? await sourceToWebm(file, trim) : await toWebm(source, file.name);
     const name = webmName(file);
     results.clear();
     results.add({ name, blob: webm, meta: webmMeta(info, webm) });
@@ -461,8 +610,8 @@
 
   ui.toGif.addEventListener('click', () => withEditorBusy('Trimming…', async () => {
     const file = ed.file;
-    const gif = await trimGif(file, ed.start, ed.end, ui.pingpong.checked);
-    const name = `${stem(file.name)}_${ed.start.toFixed(1)}-${ed.end.toFixed(1)}s${ui.pingpong.checked ? '_pingpong' : ''}.gif`;
+    const gif = ed.gif?.key === gifKey() ? ed.gif.blob : await trimGif(file, ed.start, ed.end, ui.pingpong.checked);
+    const name = gifName(file);
     results.clear();
     results.add({ name, blob: gif, thumb: true, meta: formatBytes(gif.size) });
     download(gif, name);

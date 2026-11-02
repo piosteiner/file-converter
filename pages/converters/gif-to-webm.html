@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>GIF to WebM · converter.piogino</title>
-  <meta name="description" content="Trim animated GIFs and convert them to VP9 WebM under a size limit for Telegram video stickers and emoji.">
+  <title>GIF / Video to WebM · converter.piogino</title>
+  <meta name="description" content="Trim animated GIFs or screen recordings (MKV, MP4, MOV) and convert them to VP9 WebM for Telegram video stickers and emoji, or to GIF.">
   <link rel="canonical" href="https://converter.piogino.ch/pages/converters/gif-to-webm.html">
   <link rel="icon" href="/assets/icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/assets/icons/icon-192.png">
@@ -32,9 +32,9 @@
 
   <main class="wrap">
     <div class="intro">
-      <h1>GIF <span class="arrow">→</span> WebM</h1>
-      <p>Encodes animated GIFs as VP9 WebM under a size limit, the format Telegram uses for video stickers and emoji. Drop one GIF to trim it first, or several to convert them as they are.</p>
-      <div class="spec"><span>In <b>GIF · up to 100 MB</b></span><span>Out <b>WebM · VP9 · ≤ 3 s · ≤ 30 fps</b></span><span>Runs <b>on api.piogino.ch</b></span></div>
+      <h1>GIF / Video <span class="arrow">→</span> WebM</h1>
+      <p>Encodes animated GIFs and screen recordings, such as OBS .mkv files, as VP9 WebM under a size limit, the format Telegram uses for video stickers and emoji. Drop one file to trim it first — a video can also be saved as a GIF — or several to convert them as they are.</p>
+      <div class="spec"><span>In <b>GIF · MKV · MP4 · MOV · up to 100 MB</b></span><span>Out <b>WebM · VP9 · ≤ 3 s · ≤ 30 fps</b> or <b>GIF</b></span><span>Runs <b>on api.piogino.ch</b></span></div>
     </div>
     <p class="msg bad" id="server" hidden></p>
 
@@ -53,9 +53,9 @@
       </div>
     </div>
 
-    <div class="drop" id="drop" tabindex="0" role="button" aria-label="Drop GIFs here">
-      <div><strong>Drop GIFs here</strong><small>or click to choose · one GIF opens the trimmer</small></div>
-      <input type="file" accept="image/gif,.gif" multiple>
+    <div class="drop" id="drop" tabindex="0" role="button" aria-label="Drop GIFs or videos here">
+      <div><strong>Drop GIFs or videos here</strong><small>or click to choose · one file opens the trimmer</small></div>
+      <input type="file" accept="image/gif,.gif,video/x-matroska,.mkv,video/mp4,.mp4,video/quicktime,.mov" multiple>
     </div>
     <p class="msg" id="msg"></p>
 
@@ -91,6 +91,17 @@
         </span>
       </div>
       <p class="hint" id="lenHint"></p>
+      <div class="editor-controls" id="gifOpts" hidden>
+        <label class="field compact"><span class="label">GIF width</span>
+          <select id="gifWidth"><option value="320">320 px</option><option value="480" selected>480 px</option><option value="640">640 px</option><option value="1280">original</option></select></label>
+        <label class="field compact"><span class="label">GIF frame rate</span>
+          <select id="gifFps"><option value="10">10 fps</option><option value="15" selected>15 fps</option><option value="20">20 fps</option><option value="30">30 fps</option></select></label>
+        <button class="btn ghost small" type="button" id="gifPreviewBtn">Preview GIF</button>
+      </div>
+      <figure class="gif-preview" id="gifPreview" hidden>
+        <div class="stage"><img id="gifImg" alt="GIF preview"></div>
+        <figcaption class="hint" id="gifMeta"></figcaption>
+      </figure>
       <div class="actions">
         <button class="btn" type="button" id="toWebm">Convert to WebM</button>
         <button class="btn ghost" type="button" id="toGif">Save trimmed GIF</button>
@@ -102,7 +113,7 @@
     <div class="notes">
       <div>
         <h2>Length</h2>
-        <p>Stickers longer than 3 s are cut at 3 s. Ping-pong plays the selection forward and back, so it doubles the length — keep the selection at 1.5 s or less.</p>
+        <p>Stickers longer than 3 s are cut at 3 s. Ping-pong plays the selection forward and back, so it doubles the length — keep the selection at 1.5 s or less. A GIF from a video can be up to 60 s long, but GIFs grow fast: keep them short, narrow and at a low frame rate.</p>
       </div>
       <div>
         <h2>Size</h2>

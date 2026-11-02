@@ -528,6 +528,11 @@ input[type="color"] {
 .field.compact .value.over { color: var(--accent); }
 .editor-presets { display: inline-flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
 .editor .actions { margin-top: 14px; }
+.gif-preview { margin: 12px 0 0; }
+.gif-preview .stage { min-height: 80px; }
+.gif-preview img { max-height: 380px; width: auto; }
+.gif-preview figcaption { margin-top: 6px; font-family: var(--mono); }
+.gif-preview.stale img { opacity: 0.45; }
 @media (max-width: 640px) { .editor-presets { margin-left: 0; } }
 
 /* ---------- text pages (privacy) ---------- */

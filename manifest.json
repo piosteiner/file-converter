@@ -1,7 +1,7 @@
 {
   "name": "converter.piogino",
   "short_name": "converter",
-  "description": "PNG to JPEG, Telegram stickers and emoji, GIF to WebM, battle map splitting and 25 mm grids.",
+  "description": "PNG to JPEG, Telegram stickers and emoji, GIF and video to WebM, battle map splitting and 25 mm grids.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -16,7 +16,7 @@
   ],
   "shortcuts": [
     { "name": "PNG → JPEG", "url": "/pages/converters/png-to-jpeg.html" },
-    { "name": "GIF → WebM", "url": "/pages/converters/gif-to-webm.html" },
+    { "name": "GIF / Video → WebM", "url": "/pages/converters/gif-to-webm.html" },
     { "name": "Map splitter", "url": "/pages/converters/image-splitter.html" }
   ]
 }

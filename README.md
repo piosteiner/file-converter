@@ -10,7 +10,8 @@ A professional web-based file conversion platform with multiple specialized tool
 - **🏷️ Image → 512×512 PNG** - Optimized for Telegram stickers and animated emojis
 
 ### **Video/Animation Converters**
-- **🎬 GIF → WebM Converter + Editor** - Professional GIF to WebM conversion with built-in timeline editor
+- **🎬 GIF / Video → WebM Converter + Editor** - GIFs or screen recordings (OBS .mkv, .mp4, .mov) to WebM with built-in timeline editor
+  - Videos can also be saved as GIF (width and frame rate selectable)
   - Timeline trimming and loop controls
   - Size optimization for web use
   - Perfect for animated stickers and Discord emojis
@@ -67,7 +68,7 @@ file-converter/
 ## 🎯 Use Cases
 
 ### **Content Creators**
-- Convert GIFs to WebM for better compression and quality
+- Convert GIFs or OBS recordings to WebM for better compression and quality
 - Create custom animated stickers for Telegram
 - Generate Discord animated emojis
 - Optimize images for web publishing
