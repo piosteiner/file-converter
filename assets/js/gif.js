@@ -60,7 +60,8 @@
 
   // ---------- sticker layout ----------
   // Telegram shows every sticker inside the same square, so a wide sticker looks small and a square one big.
-  // Transparent space around the content shrinks it and moves it towards a side. Same maths as the server's
+  // Transparent space around the content shrinks it and moves it towards a side; the wide frame puts that
+  // space at the sides only, so the sticker stays as short as the content. Same maths as the server's
   // sticker_layout() in server/gif_to_webm.py: keep the two in step.
 
   const STICKER_BOX = 224; // CSS px Telegram Desktop gives a sticker, roughly
@@ -68,7 +69,7 @@
   const even = (v) => Math.max(2, Math.round(v / 2) * 2);
   const sticker = () => mode() !== 'emoji';
   const layout = () => ({
-    square: $('input[name="frame"]:checked').value === 'square',
+    frame: $('input[name="frame"]:checked').value, // tight | square | wide
     size: ui.layoutSize.value / 100,
     x: ui.layoutX.value / 100,
     y: ui.layoutY.value / 100,
@@ -76,18 +77,19 @@
   // Sent with a WebM only when it differs from the plain fit (tight frame, full size, centred).
   const layoutValue = () => {
     const l = layout();
-    if (!l.square && l.size === 1 && l.x === 0.5 && l.y === 0.5) return '';
-    return [l.square ? 'square' : 'tight', l.size, l.x, l.y].join(',');
+    if (l.frame === 'tight' && l.size === 1 && l.x === 0.5 && l.y === 0.5) return '';
+    return [l.frame, l.size, l.x, l.y].join(',');
   };
 
   // { cw, ch, w, h, left, top }: canvas and content size in sticker pixels, for content of width × height.
   function stickerLayout(width, height) {
-    const { square, size, x, y } = layout();
+    const { frame: fr, size, x, y } = layout();
     let cw; let ch;
-    if (!sticker()) { cw = ch = 100; } else if (square) { cw = ch = 512; } else if (width >= height) { cw = 512; ch = even((512 * height) / width); } else { cw = even((512 * width) / height); ch = 512; }
+    if (!sticker()) { cw = ch = 100; } else if (fr === 'square') { cw = ch = 512; } else if (width >= height) { cw = 512; ch = even((512 * height) / width); } else { cw = even((512 * width) / height); ch = 512; }
     const scale = Math.min((cw * size) / width, (ch * size) / height);
     const w = Math.min(cw, even(width * scale));
     const h = Math.min(ch, even(height * scale));
+    if (fr === 'wide' && sticker()) { cw = 512; ch = h; } // transparent space at the sides only
     return { cw, ch, w, h, left: Math.round(((cw - w) * x) / 2) * 2, top: Math.round(((ch - h) * y) / 2) * 2 };
   }
 

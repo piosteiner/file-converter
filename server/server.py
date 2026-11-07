@@ -79,14 +79,14 @@ def selection_params(form):
             'crop': crop_param(form), 'layout': layout_param(form)}
 
 def layout_param(form):
-    """Optional sticker layout form field 'square|tight,size,x,y' as sticker_layout options, or None; raises ValueError."""
+    """Optional sticker layout form field 'tight|square|wide,size,x,y' as sticker_layout options, or None; raises ValueError."""
     if not form.get('layout'):
         return None
     frame, size, x, y = form['layout'].split(',')
     size, x, y = float(size), float(x), float(y)
-    if frame not in ('square', 'tight') or not (0.2 <= size <= 1 and 0 <= x <= 1 and 0 <= y <= 1):
+    if frame not in ('tight', 'square', 'wide') or not (0.2 <= size <= 1 and 0 <= x <= 1 and 0 <= y <= 1):
         raise ValueError('Invalid layout')
-    return {'square': frame == 'square', 'size': size, 'x': x, 'y': y}
+    return {'frame': frame, 'size': size, 'x': x, 'y': y}
 
 def crop_param(form):
     """Optional crop form field 'x,y,w,h' (fractions of the frame) as a tuple, or None; raises ValueError."""

@@ -70,19 +70,22 @@ def calculate_scale_filter(width, height, mode='sticker'):
 def _even(v):
     return max(2, int(round(v / 2)) * 2)
 
-def sticker_layout(width, height, mode='sticker', square=False, size=1.0, x=0.5, y=0.5):
+def sticker_layout(width, height, mode='sticker', frame='tight', size=1.0, x=0.5, y=0.5):
     """
     Where the content goes in the sticker: (canvas_w, canvas_h, content_w, content_h, left, top).
 
-    The canvas is 100 x 100 for emoji; for stickers 512 x 512 (square) or the content's shape with its longer
-    side 512 (tight) — either way one side is exactly 512, as Telegram requires. The content is fitted into
-    size (0.2…1) of the canvas and placed at x, y (0 = left/top, 1 = right/bottom); the rest stays transparent.
-    Telegram shows every sticker inside the same square, so transparent space makes the content look smaller
-    and moves it within the bubble.
+    The canvas is 100 x 100 for emoji; for stickers it depends on frame:
+      tight   the content's shape with its longer side 512
+      square  512 x 512
+      wide    512 wide, but only as tall as the content: transparent space goes to the sides only
+    Either way one side is exactly 512, as Telegram requires. The content is fitted into size (0.2…1) of a
+    512 square (100 for emoji) and placed at x, y (0 = left/top, 1 = right/bottom); the rest stays
+    transparent. Telegram shows every sticker inside the same square, so transparent space makes the content
+    look smaller and moves it within the bubble; a wide frame does that without making the sticker taller.
     """
     if mode == 'emoji':
         cw = ch = 100
-    elif square:
+    elif frame == 'square':
         cw = ch = 512
     elif width >= height:
         cw, ch = 512, _even(512 * height / width)
@@ -90,6 +93,8 @@ def sticker_layout(width, height, mode='sticker', square=False, size=1.0, x=0.5,
         cw, ch = _even(512 * width / height), 512
     scale = min(cw * size / width, ch * size / height)
     w, h = min(cw, _even(width * scale)), min(ch, _even(height * scale))
+    if frame == 'wide' and mode != 'emoji':
+        cw, ch = 512, h
     return cw, ch, w, h, int(round((cw - w) * x / 2)) * 2, int(round((ch - h) * y / 2)) * 2
 
 def layout_filter(width, height, mode='sticker', **layout):
@@ -114,7 +119,7 @@ def convert_gif_to_webm(input_path, output_path=None, mode='sticker', max_size_k
         start, end (float, optional): only use this part of the input, in seconds
         pingpong (bool): play the part forward, then backwards
         crop (tuple, optional): (x, y, w, h) as fractions of the frame, cut out before scaling
-        layout (dict, optional): sticker_layout options (square, size, x, y); default: tight, full size
+        layout (dict, optional): sticker_layout options (frame, size, x, y); default: tight, full size
         audio (bool): preview mode only — keep the first audio track (Opus), for the video trimmer
     
     Returns:
