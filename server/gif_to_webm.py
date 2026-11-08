@@ -4,6 +4,7 @@ GIF to WebM Converter for Stickers and Emojis
 Converts GIF files to WebM format meeting strict requirements for messaging platforms.
 """
 
+import math
 import subprocess
 import tempfile
 import sys
@@ -35,12 +36,41 @@ def get_video_info(file_path):
     except (subprocess.CalledProcessError, json.JSONDecodeError):
         return None
 
+# How far a crop box may reach past the frame on each side, in frame widths / heights. Mirrors crop.js.
+CROP_OUTSIDE = 2
+
+def _crop_parts(crop):
+    """The part of the frame inside crop = (x, y, w, h), and crop's size and offset relative to that part."""
+    x, y, w, h = crop
+    ix, iy = max(0.0, x), max(0.0, y)
+    iw, ih = min(1.0, x + w) - ix, min(1.0, y + h) - iy
+    inside = (ix, iy, iw, ih)
+    outside = None if ix == x and iy == y and iw == w and ih == h else (w / iw, h / ih, (ix - x) / iw, (iy - y) / ih)
+    return inside, outside
+
 def crop_filter(crop):
     """FFmpeg filter for crop = (x, y, w, h) as fractions of the frame; even sizes, as yuv420p needs.
-    The +0.01 absorbs float error (576 px sent as 0.53333 of 1080 is 575.996) without ever exceeding the frame."""
-    x, y, w, h = crop
-    return (f"crop=trunc(iw*{w:.6f}/2+0.01)*2:trunc(ih*{h:.6f}/2+0.01)*2"
-            f":trunc(iw*{x:.6f}+0.01):trunc(ih*{y:.6f}+0.01)")
+    The +0.01 absorbs float error (576 px sent as 0.53333 of 1080 is 575.996) without ever exceeding the frame.
+    The box may reach past the frame (x < 0, x + w > 1, …): that part becomes transparent padding, so a
+    sticker can get see-through space at its sides and show smaller. Keep in step with crop_size()."""
+    (ix, iy, iw, ih), outside = _crop_parts(crop)
+    f = (f"crop=trunc(iw*{iw:.6f}/2+0.01)*2:trunc(ih*{ih:.6f}/2+0.01)*2"
+         f":trunc(iw*{ix:.6f}+0.01):trunc(ih*{iy:.6f}+0.01)")
+    if outside:
+        # pad's iw/ih are the cropped size. ceil keeps the padded area at least as big as content + offset.
+        pw, ph, px, py = outside
+        f += (f",format=rgba,pad=ceil(iw*{pw:.6f}/2-0.01)*2:ceil(ih*{ph:.6f}/2-0.01)*2"
+              f":trunc(iw*{px:.6f}+0.01):trunc(ih*{py:.6f}+0.01):color=black@0")
+    return f
+
+def crop_size(width, height, crop):
+    """Pixel size a width x height frame has after crop_filter(crop): the same arithmetic as the filter."""
+    (ix, iy, iw, ih), outside = _crop_parts(crop)
+    w, h = 2 * int(width * round(iw, 6) / 2 + 0.01), 2 * int(height * round(ih, 6) / 2 + 0.01)
+    if outside:
+        pw, ph = outside[:2]
+        w, h = 2 * math.ceil(w * round(pw, 6) / 2 - 0.01), 2 * math.ceil(h * round(ph, 6) / 2 - 0.01)
+    return w, h
 
 def calculate_scale_filter(width, height, mode='sticker'):
     """
@@ -162,7 +192,7 @@ def convert_gif_to_webm(input_path, output_path=None, mode='sticker', max_size_k
     
     # Calculate scale filter from the cropped size (the size ffmpeg's crop gives, see crop_filter)
     if crop:
-        width, height = 2 * int(width * crop[2] / 2 + 0.01), 2 * int(height * crop[3] / 2 + 0.01)
+        width, height = crop_size(width, height, crop)
     if mode == 'preview':
         scale_filter = calculate_scale_filter(width, height, mode)
     else:

@@ -531,8 +531,12 @@ input[type="color"] {
 .editor .actions { margin-top: 14px; }
 .video-cut { margin-top: 18px; }
 .crop-wrap { position: relative; line-height: 0; }
-.crop-wrap.cropping { cursor: crosshair; touch-action: none; user-select: none; -webkit-user-select: none; overflow: hidden; }
+.editor-stage.cropping { cursor: crosshair; touch-action: none; user-select: none; -webkit-user-select: none; }
+/* The box has been dragged past the picture: the picture is sized by crop.js so the whole box fits the stage,
+   and the checkerboard around it is the transparent space the output gets. */
+.crop-wrap.extended video, .crop-wrap.extended img { width: 100%; max-height: none; }
 .crop-box { position: absolute; box-shadow: 0 0 0 9999px rgb(0 0 0 / 0.5); outline: 1px solid #fff; cursor: move; }
+.crop-box.full { box-shadow: none; }
 .crop-handle { position: absolute; width: 14px; height: 14px; margin: -7px 0 0 -7px; background: #fff; border: 2px solid var(--accent); }
 .crop-handle.nw { left: 0; top: 0; cursor: nwse-resize; }
 .crop-handle.n { left: 50%; top: 0; cursor: ns-resize; }

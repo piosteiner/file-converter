@@ -27,7 +27,7 @@ import threading
 
 # ---- Import conversion helpers (your existing file) ----
 try:
-    from gif_to_webm import convert_gif_to_webm, check_ffmpeg, get_video_info, crop_filter
+    from gif_to_webm import convert_gif_to_webm, check_ffmpeg, get_video_info, crop_filter, CROP_OUTSIDE
     HAS_CONVERTER = True
 except ImportError:
     print("Warning: gif_to_webm.py not found. Please ensure it's in the same directory.")
@@ -89,13 +89,20 @@ def layout_param(form):
     return {'frame': frame, 'size': size, 'x': x, 'y': y}
 
 def crop_param(form):
-    """Optional crop form field 'x,y,w,h' (fractions of the frame) as a tuple, or None; raises ValueError."""
+    """Optional crop form field 'x,y,w,h' (fractions of the frame) as a tuple, or None; raises ValueError.
+    The box may reach up to CROP_OUTSIDE frames past each edge (transparent space) but must cover part of the frame."""
     if not form.get('crop'):
         return None
     x, y, w, h = (float(v) for v in form['crop'].split(','))
-    if not (0 <= x < 1 and 0 <= y < 1 and 0.01 <= w <= 1 and 0.01 <= h <= 1 and x + w <= 1.0001 and y + h <= 1.0001):
+    # Edges that are at the frame's edge up to rounding snap to it, so they don't become a 2 px pad.
+    snap = lambda v, to: to if abs(v - to) < 1e-4 else v
+    x, y = snap(x, 0), snap(y, 0)
+    w, h = snap(x + w, 1) - x, snap(y + h, 1) - y
+    lo, hi = -CROP_OUTSIDE, 1 + CROP_OUTSIDE
+    if not (lo <= x < 0.99 and lo <= y < 0.99 and 0.01 <= w and 0.01 <= h and x + w <= hi and y + h <= hi
+            and x + w >= 0.01 and y + h >= 0.01):
         raise ValueError('Invalid crop')
-    return (x, y, min(w, 1 - x), min(h, 1 - y))
+    return (x, y, w, h)
 
 # A video open in the trimmer stays here as source_<uuid>.<ext> (id chosen by the browser), so GIF previews
 # and conversions don't upload it again. Removed by /api/source/<id>/delete or by cleanup_old_files() 1 hour
@@ -528,7 +535,7 @@ def edit_trim_gif_blob():
                 '-i', in_path,
                 '-ss', str(start_time),
                 '-t', str(duration),
-                *(['-vf', crop_filter(crop)] if crop else []),
+                '-vf', f"{crop_filter(crop) + ',' if crop else ''}split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse",
                 temp
             ]
             

@@ -37,9 +37,10 @@
   let frame = null; // source size { width, height } of the open file, when known
 
   // Crop size in source pixels and what Telegram gets: the longer side is scaled to exactly 512 (emoji: 100 × 100).
+  // A box reaching past the frame counts with its transparent space, which is what makes the sticker smaller.
   function describeCrop() {
     const c = cropper.get() ?? [0, 0, 1, 1];
-    const what = cropper.get() ? 'Crop' : 'Full frame';
+    const what = !cropper.get() ? 'Full frame' : cropper.outside() ? 'Crop + transparent space' : 'Crop';
     if (!frame) { ui.cropInfo.textContent = cropper.get() ? `${what} ${Math.round(c[2] * 100)} % × ${Math.round(c[3] * 100)} %` : ''; return; }
     const w = Math.round(c[2] * frame.width);
     const h = Math.round(c[3] * frame.height);
@@ -153,8 +154,13 @@
         const ctx = cv.getContext('2d');
         ctx.clearRect(0, 0, pw, ph);
         if (sw && sh) {
+          // Only the part of the crop box inside the frame has pixels; the rest of the box stays transparent.
           const k = pw / l.cw;
-          ctx.drawImage(c.src, c.c[0] * sw, c.c[1] * sh, c.c[2] * sw, c.c[3] * sh, l.left * k, l.top * k, l.w * k, l.h * k);
+          const [bx, by, bw, bh] = c.c;
+          const x0 = Math.max(0, bx); const y0 = Math.max(0, by);
+          const x1 = Math.min(1, bx + bw); const y1 = Math.min(1, by + bh);
+          ctx.drawImage(c.src, x0 * sw, y0 * sh, (x1 - x0) * sw, (y1 - y0) * sh,
+            (l.left + ((x0 - bx) / bw) * l.w) * k, (l.top + ((y0 - by) / bh) * l.h) * k, ((x1 - x0) / bw) * l.w * k, ((y1 - y0) / bh) * l.h * k);
         }
       }
     }
