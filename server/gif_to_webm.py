@@ -72,6 +72,13 @@ def crop_size(width, height, crop):
         w, h = 2 * math.ceil(w * round(pw, 6) / 2 - 0.01), 2 * math.ceil(h * round(ph, 6) / 2 - 0.01)
     return w, h
 
+def caption_filter(path):
+    """FFmpeg filters that lay the caption PNG at path over the frame. The browser draws it (text, wrapping and
+    position, see drawCaption in gif.js) with transparency around the text, at the shape of the cropped frame.
+    It has one frame: overlay keeps showing it to the end. format=auto keeps the transparency of the frame."""
+    return (f"null[cap_v];movie='{path}',format=rgba[cap_i];[cap_i][cap_v]scale2ref[cap_s][cap_b];"
+            "[cap_b][cap_s]overlay=0:0:format=auto")
+
 def calculate_scale_filter(width, height, mode='sticker'):
     """
     Calculate the scale filter based on mode and aspect ratio.
@@ -136,7 +143,7 @@ def layout_filter(width, height, mode='sticker', **layout):
     return f"{scaled},format=yuva420p,pad={cw}:{ch}:{left}:{top}:color=black@0"
 
 def convert_gif_to_webm(input_path, output_path=None, mode='sticker', max_size_kb=256, progress=None,
-                        start=0.0, end=None, pingpong=False, crop=None, layout=None, audio=False):
+                        start=0.0, end=None, pingpong=False, crop=None, layout=None, audio=False, caption=None):
     """
     Convert GIF (or a video such as an OBS .mkv) to WebM meeting strict requirements.
     
@@ -150,6 +157,7 @@ def convert_gif_to_webm(input_path, output_path=None, mode='sticker', max_size_k
         pingpong (bool): play the part forward, then backwards
         crop (tuple, optional): (x, y, w, h) as fractions of the frame, cut out before scaling
         layout (dict, optional): sticker_layout options (frame, size, x, y); default: tight, full size
+        caption (str, optional): path of a caption PNG to lay over the cropped frame, see caption_filter
         audio (bool): preview mode only — keep the first audio track (Opus), for the video trimmer
     
     Returns:
@@ -199,7 +207,10 @@ def convert_gif_to_webm(input_path, output_path=None, mode='sticker', max_size_k
         scale_filter = layout_filter(width, height, mode, **(layout or {}))
     
     # Build video filters
-    filters = [crop_filter(crop), scale_filter] if crop else [scale_filter]
+    filters = [crop_filter(crop)] if crop else []
+    if caption:
+        filters.append(caption_filter(caption))
+    filters.append(scale_filter)
     
     # Limit FPS to 30
     source_fps = eval(video_stream.get('r_frame_rate', '30/1'))

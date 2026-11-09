@@ -107,6 +107,17 @@
       </div>
       <p class="hint" id="lenHint"></p>
       <p class="hint keys"><kbd>Space</kbd> play/pause · <kbd>←</kbd> <kbd>→</kbd> one frame (<kbd>Shift</kbd>: 1 s) · <kbd>I</kbd> <kbd>O</kbd> start/end at the playhead · <kbd>Home</kbd> <kbd>End</kbd> first/last frame</p>
+      <div class="editor-controls caption-controls">
+        <label class="field compact caption-field"><span class="label">Caption</span>
+          <input type="text" id="captionText" maxlength="200" placeholder="Text on the picture" autocomplete="off"></label>
+        <label class="field compact layout-range"><span class="label">Text size <output id="captionSizeOut">12 %</output></span>
+          <input type="range" id="captionSize" min="5" max="30" step="1" value="12"></label>
+        <label class="field compact layout-range"><span class="label">Horizontal <output id="captionXOut">center</output></span>
+          <input type="range" id="captionX" min="0" max="100" step="1" value="50"></label>
+        <label class="field compact layout-range"><span class="label">Vertical <output id="captionYOut">bottom</output></span>
+          <input type="range" id="captionY" min="0" max="100" step="1" value="100"></label>
+        <button class="btn ghost small" type="button" id="captionReset">Reset</button>
+      </div>
       <div class="editor-controls layout-controls">
         <div class="field compact">
           <span class="label">Sticker frame</span>
@@ -165,6 +176,10 @@
         <p>Drag a box on the preview to crop. Its longer side becomes the sticker's 512 px (Telegram wants one side exactly 512 px), so a smaller box zooms in. Boxes under 512 px get enlarged and look softer.</p>
         <p>Drag the box past the edge of the picture to add transparent space on that side. Pulling it out to the left and right makes a sticker wider and flatter, so Telegram shows it smaller without it taking up more height in the chat.</p>
         <p>Telegram shows every sticker in the same square, so a wide sticker looks small and a square one big. A smaller size adds transparent space, which shrinks the sticker and lets you move it towards a side. Square 512 pads it to a full square; Wide 512 pads only left and right, so the sticker gets smaller without taking up more height in the chat.</p>
+      </div>
+      <div>
+        <h2>Caption</h2>
+        <p>Type a caption to put it on the sticker or GIF: white with a black outline and shadow, at the bottom in the middle unless you move it. It sits inside the crop box, wraps to fit, and looks in the file as it does on the preview. It works when one file is open in the trimmer.</p>
       </div>
       <div>
         <h2>Size</h2>

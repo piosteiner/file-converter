@@ -14,6 +14,7 @@ A professional web-based file conversion platform with multiple specialized tool
   - Videos can also be saved as GIF (width and frame rate selectable)
   - Crop box on the preview (free or square); the crop's longer side becomes the sticker's 512 px
   - Sticker layout (tight or square 512 frame, size, position) with transparent padding, previewed in a Telegram-style chat
+  - Caption on the WebM or GIF: white with a black outline and shadow, bottom middle by default, with size and position sliders
 - **✂️ Video trim** - Cut the start and end off OBS recordings and save as MP4 (original quality by default; resolution, frame rate and bit rate can be lowered, or a lossless keyframe copy)
   - Timeline trimming and loop controls
   - Size optimization for web use

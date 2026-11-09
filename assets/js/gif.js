@@ -11,6 +11,8 @@
     cropReset: $('#cropReset'), cropInfo: $('#cropInfo'),
     layoutSize: $('#layoutSize'), layoutX: $('#layoutX'), layoutY: $('#layoutY'),
     layoutSizeOut: $('#layoutSizeOut'), layoutXOut: $('#layoutXOut'), layoutYOut: $('#layoutYOut'), layoutReset: $('#layoutReset'),
+    captionText: $('#captionText'), captionSize: $('#captionSize'), captionX: $('#captionX'), captionY: $('#captionY'),
+    captionSizeOut: $('#captionSizeOut'), captionXOut: $('#captionXOut'), captionYOut: $('#captionYOut'), captionReset: $('#captionReset'),
     tgChat: $('#tgChat'), tgEdges: $('#tgEdges'), tgCaption: $('#tgCaption'),
     video: $('#video'), still: $('#still'),
   };
@@ -20,7 +22,8 @@
 
   const trimmer = createTrimmer({
     controls: () => [ui.toWebm, ui.toGif, ui.gifWidth, ui.gifFps, ui.gifPreviewBtn, ui.cropReset, ...$$('input[name="cropShape"]'),
-      ui.layoutSize, ui.layoutX, ui.layoutY, ui.layoutReset, ...$$('input[name="frame"]')],
+      ui.layoutSize, ui.layoutX, ui.layoutY, ui.layoutReset, ...$$('input[name="frame"]'),
+      ui.captionText, ui.captionSize, ui.captionX, ui.captionY, ui.captionReset],
     initialEnd: (d) => (d > LIMIT_S ? LIMIT_S : d),
     lengthHint: (played) => (played > LIMIT_S + 0.005
       ? `Longer than ${LIMIT_S} s${trimmer.pingpong() ? ' with ping-pong' : ''} — the WebM will be cut at ${LIMIT_S} s.`
@@ -32,7 +35,7 @@
 
   // ---------- crop ----------
 
-  const cropper = createCropper({ wrap: $('#cropWrap'), box: $('#cropBox'), onChange: () => { describeCrop(); gifSettingsChanged(); describeLayout(); } });
+  const cropper = createCropper({ wrap: $('#cropWrap'), box: $('#cropBox'), onChange: () => { describeCrop(); gifSettingsChanged(); describeLayout(); drawStageCaption(); } });
   const cropValue = () => cropper.get()?.map((v) => v.toFixed(5)).join(',') ?? '';
   let frame = null; // source size { width, height } of the open file, when known
 
@@ -131,6 +134,104 @@
   });
   ui.tgEdges.addEventListener('change', () => ui.tgChat.classList.toggle('edges', ui.tgEdges.checked));
 
+  // ---------- caption ----------
+  // The browser draws the caption and sends it as a transparent PNG the shape of the crop box, which the server
+  // lays over the frame. So wrapping and the font are the same in the preview and the file.
+
+  const CAPTION_FONT = 'Impact, Haettenschweiler, "Arial Black", "IBM Plex Sans", sans-serif';
+  const CAPTION_MAX_PX = 1024; // longest side of the PNG
+  const captionText = () => ui.captionText.value.trim();
+
+  function wrapCaption(ctx, text, maxWidth) {
+    const lines = [];
+    let line = '';
+    for (const word of text.split(/\s+/)) {
+      const next = line ? `${line} ${word}` : word;
+      if (line && ctx.measureText(next).width > maxWidth) { lines.push(line); line = word; } else line = next;
+    }
+    lines.push(line);
+    return lines;
+  }
+
+  // Draws the caption over an area of width × height, its origin at the context's (0, 0).
+  function drawCaption(ctx, width, height) {
+    const text = captionText();
+    if (!text) return;
+    const short = Math.min(width, height);
+    const margin = short * 0.04;
+    const maxWidth = width - 2 * margin;
+    let size = (short * ui.captionSize.value) / 100;
+    const setFont = () => { ctx.font = `${size}px ${CAPTION_FONT}`; };
+    ctx.save();
+    setFont();
+    let lines = wrapCaption(ctx, text, maxWidth);
+    const widest = () => Math.max(...lines.map((l) => ctx.measureText(l).width));
+    if (widest() > maxWidth) { size *= maxWidth / widest(); setFont(); lines = wrapCaption(ctx, text, maxWidth); } // one very long word
+    const blockWidth = Math.min(maxWidth, widest());
+    const lineHeight = size * 1.15;
+    const blockHeight = lines.length * lineHeight;
+    const cx = margin + blockWidth / 2 + (maxWidth - blockWidth) * (ui.captionX.value / 100);
+    const top = margin + (height - 2 * margin - blockHeight) * (ui.captionY.value / 100);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#000';
+    ctx.fillStyle = '#fff';
+    ctx.lineWidth = size * 0.16;
+    lines.forEach((l, i) => {
+      const y = top + lineHeight * (i + 0.5);
+      ctx.shadowColor = 'rgb(0 0 0 / 0.85)';
+      ctx.shadowBlur = size * 0.12;
+      ctx.shadowOffsetX = ctx.shadowOffsetY = size * 0.06;
+      ctx.strokeText(l, cx, y);
+      ctx.shadowColor = 'transparent';
+      ctx.fillText(l, cx, y);
+    });
+    ctx.restore();
+  }
+
+  // The caption over the editor's preview: a canvas inside the crop box, so it follows the box.
+  const captionCanvas = el('canvas', { class: 'caption-canvas' });
+  ui.cropBox = $('#cropBox');
+  ui.cropBox.prepend(captionCanvas);
+  function drawStageCaption() {
+    const dpr = window.devicePixelRatio || 1;
+    const w = ui.cropBox.clientWidth;
+    const h = ui.cropBox.clientHeight;
+    if (!w || !h) return;
+    captionCanvas.width = Math.round(w * dpr);
+    captionCanvas.height = Math.round(h * dpr);
+    drawCaption(captionCanvas.getContext('2d'), captionCanvas.width, captionCanvas.height);
+  }
+  new ResizeObserver(drawStageCaption).observe(ui.cropBox);
+
+  // The PNG to send, or null without a caption.
+  async function captionPng() {
+    const c = contentSize();
+    if (!captionText() || !c) return null;
+    const k = Math.min(1, CAPTION_MAX_PX / Math.max(c.width, c.height));
+    const cv = el('canvas');
+    cv.width = Math.max(2, Math.round(c.width * k));
+    cv.height = Math.max(2, Math.round(c.height * k));
+    drawCaption(cv.getContext('2d'), cv.width, cv.height);
+    return new Promise((resolve) => cv.toBlob(resolve, 'image/png'));
+  }
+
+  function captionChanged() {
+    ui.captionSizeOut.value = `${ui.captionSize.value} %`;
+    ui.captionXOut.value = placeName(Number(ui.captionX.value), ['left', 'center', 'right']);
+    ui.captionYOut.value = placeName(Number(ui.captionY.value), ['top', 'middle', 'bottom']);
+    drawStageCaption();
+    gifSettingsChanged();
+  }
+  [ui.captionText, ui.captionSize, ui.captionX, ui.captionY].forEach((i) => i.addEventListener('input', captionChanged));
+  ui.captionReset.addEventListener('click', () => {
+    ui.captionSize.value = 12;
+    ui.captionX.value = 50;
+    ui.captionY.value = 100;
+    captionChanged();
+  });
+
   // Draws the current preview frame into every sticker / emoji canvas of the chat, laid out like the WebM will be.
   let chatRaf = 0;
   function drawChat() {
@@ -161,6 +262,10 @@
           const x1 = Math.min(1, bx + bw); const y1 = Math.min(1, by + bh);
           ctx.drawImage(c.src, x0 * sw, y0 * sh, (x1 - x0) * sw, (y1 - y0) * sh,
             (l.left + ((x0 - bx) / bw) * l.w) * k, (l.top + ((y0 - by) / bh) * l.h) * k, ((x1 - x0) / bw) * l.w * k, ((y1 - y0) / bh) * l.h * k);
+          ctx.save();
+          ctx.translate(l.left * k, l.top * k);
+          drawCaption(ctx, l.w * k, l.h * k);
+          ctx.restore();
         }
       }
     }
@@ -177,13 +282,14 @@
 
   // ---------- server ----------
 
-  async function toWebm(blob, filename, label = '', crop = '', layoutField = '') {
+  async function toWebm(blob, filename, label = '', crop = '', layoutField = '', caption = null) {
     const t = apiTracker(ui.msg, label);
     try {
       const form = new FormData();
       form.append('file', blob, filename);
       if (crop) form.append('crop', crop);
       if (layoutField) form.append('layout', layoutField);
+      if (caption) form.append('caption', caption, 'caption.png');
       return await convertForm(form, t, null);
     } finally {
       t.stop();
@@ -192,12 +298,13 @@
 
   // Video in the trimmer: same as toWebm, but from the kept copy on the server.
   // trim: { start, end, pingpong } — the server cuts videos itself (a GIF in between would cost quality).
-  async function sourceToWebm(file, trim, crop, layoutField) {
+  async function sourceToWebm(file, trim, crop, layoutField, caption) {
     const t = apiTracker(ui.msg, '');
     try {
       return await trimmer.withSource(file, (form) => {
         if (crop) form.append('crop', crop);
         if (layoutField) form.append('layout', layoutField);
+        if (caption) form.append('caption', caption, 'caption.png');
         return form;
       }, (form) => convertForm(form, t, trim));
     } finally {
@@ -222,7 +329,7 @@
   }
 
   // GIF of the selection. Videos also take the GIF width and frame rate. quiet: no progress in the message line.
-  async function trimGif(file, start, end, pingpong, { quiet = false, crop = '' } = {}) {
+  async function trimGif(file, start, end, pingpong, { quiet = false, crop = '', caption = null } = {}) {
     const t = quiet ? null : apiTracker(ui.msg, '', { verb: 'Trimming', poll: false });
     try {
       return await trimmer.withSource(file, (form) => {
@@ -230,6 +337,7 @@
         form.append('end', end.toFixed(3));
         if (pingpong) form.append('pingpong', 'true');
         if (crop) form.append('crop', crop);
+        if (caption) form.append('caption', caption, 'caption.png');
         if (isVideoFile(file)) {
           form.append('width', ui.gifWidth.value);
           form.append('fps', ui.gifFps.value);
@@ -330,7 +438,8 @@
   // Renders the real GIF on the server, so width, frame rate, colours and file size are what Save as GIF gives.
   // Once shown, it follows the selection and settings, re-rendering after a short pause.
 
-  const gifKey = () => [ed.start.toFixed(3), ed.end.toFixed(3), trimmer.pingpong(), ui.gifWidth.value, ui.gifFps.value, cropValue()].join('|');
+  const gifKey = () => [ed.start.toFixed(3), ed.end.toFixed(3), trimmer.pingpong(), ui.gifWidth.value, ui.gifFps.value, cropValue(),
+    captionText(), ui.captionSize.value, ui.captionX.value, ui.captionY.value].join('|');
   const gifName = (file) => `${stem(file.name)}_${ed.start.toFixed(1)}-${ed.end.toFixed(1)}s${trimmer.pingpong() ? '_pingpong' : ''}.gif`;
 
   function hideGifPreview() {
@@ -361,7 +470,7 @@
     ui.gifPreview.classList.add('stale');
     ui.gifMeta.textContent = 'Rendering the GIF…';
     try {
-      const blob = await trimGif(file, ed.start, ed.end, trimmer.pingpong(), { quiet: true, crop: cropValue() });
+      const blob = await trimGif(file, ed.start, ed.end, trimmer.pingpong(), { quiet: true, crop: cropValue(), caption: await captionPng() });
       if (run !== gifState.run) return; // settings changed or closed meanwhile
       if (gifState.gif) URL.revokeObjectURL(gifState.gif.url);
       gifState.gif = { key, blob, url: URL.createObjectURL(blob) };
@@ -396,7 +505,8 @@
       source = await trimGif(file, ed.start, ed.end, trimmer.pingpong());
       say(ui.msg, 'Converting…', 'busy');
     }
-    const { webm, info } = isVideoFile(file) ? await sourceToWebm(file, trim, cropValue(), layoutValue()) : await toWebm(source, file.name, '', cropValue(), layoutValue());
+    const caption = await captionPng();
+    const { webm, info } = isVideoFile(file) ? await sourceToWebm(file, trim, cropValue(), layoutValue(), caption) : await toWebm(source, file.name, '', cropValue(), layoutValue(), caption);
     const name = webmName(file);
     results.clear();
     results.add({ name, blob: webm, meta: webmMeta(info, webm) });
@@ -406,7 +516,7 @@
 
   ui.toGif.addEventListener('click', () => trimmer.busy('Trimming…', async () => {
     const file = ed.file;
-    const gif = gifState.gif?.key === gifKey() ? gifState.gif.blob : await trimGif(file, ed.start, ed.end, trimmer.pingpong(), { crop: cropValue() });
+    const gif = gifState.gif?.key === gifKey() ? gifState.gif.blob : await trimGif(file, ed.start, ed.end, trimmer.pingpong(), { crop: cropValue(), caption: await captionPng() });
     const name = gifName(file);
     results.clear();
     results.add({ name, blob: gif, thumb: true, meta: formatBytes(gif.size) });

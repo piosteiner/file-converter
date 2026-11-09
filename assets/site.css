@@ -552,6 +552,10 @@ input[type="color"] {
 .crop-info { flex: 1 1 260px; font-family: var(--mono); }
 .crop-info.warn { color: var(--accent); }
 .layout-controls { margin-top: 4px; }
+.caption-controls { margin-bottom: 14px; }
+.caption-field { flex: 1 1 240px; }
+.field.compact.caption-field input { width: 100%; }
+.caption-canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .hint.keys { margin-top: 6px; line-height: 1.9; }
 kbd {
   font: 500 11px/1 var(--mono);

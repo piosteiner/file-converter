@@ -27,7 +27,7 @@ import threading
 
 # ---- Import conversion helpers (your existing file) ----
 try:
-    from gif_to_webm import convert_gif_to_webm, check_ffmpeg, get_video_info, crop_filter, CROP_OUTSIDE
+    from gif_to_webm import convert_gif_to_webm, check_ffmpeg, get_video_info, crop_filter, caption_filter, CROP_OUTSIDE
     HAS_CONVERTER = True
 except ImportError:
     print("Warning: gif_to_webm.py not found. Please ensure it's in the same directory.")
@@ -103,6 +103,28 @@ def crop_param(form):
             and x + w >= 0.01 and y + h >= 0.01):
         raise ValueError('Invalid crop')
     return (x, y, w, h)
+
+MAX_CAPTION_SIZE = 2 * 1024 * 1024
+
+def saved_caption(file_id):
+    """Optional uploaded 'caption' PNG (the text drawn by the browser), saved for ffmpeg: its path, or None; raises ValueError."""
+    upload = request.files.get('caption')
+    if not upload:
+        return None
+    data = upload.read(MAX_CAPTION_SIZE + 1)
+    if len(data) > MAX_CAPTION_SIZE or not data.startswith(b'\x89PNG\r\n\x1a\n'):
+        raise ValueError('Invalid caption')
+    path = os.path.join(UPLOAD_FOLDER, f"{file_id}_caption.png")
+    with open(path, 'wb') as f:
+        f.write(data)
+    return path
+
+def remove_quietly(path):
+    try:
+        if path and os.path.exists(path):
+            os.remove(path)
+    except OSError:
+        pass
 
 # A video open in the trimmer stays here as source_<uuid>.<ext> (id chosen by the browser), so GIF previews
 # and conversions don't upload it again. Removed by /api/source/<id>/delete or by cleanup_old_files() 1 hour
@@ -499,17 +521,24 @@ def edit_trim_gif_blob():
 
         file_id = str(uuid.uuid4())
         out_path = os.path.join(UPLOAD_FOLDER, f"{file_id}_trimmed.gif")
+        try:
+            caption = saved_caption(file_id)
+        except ValueError:
+            return jsonify({'error': 'Invalid caption'}), 400
         received = received_source(file_id)
         if not isinstance(received, tuple) or len(received) != 3:
+            remove_quietly(caption)
             return received
         in_path, secure_name, kept = received
 
         duration = end_time - start_time
+        # Crop and caption come first in every branch, so ping-pong reverses the captioned frames.
+        head = ''.join(f"{f}," for f in [crop_filter(crop) if crop else '', caption_filter(caption) if caption else ''] if f)
 
         if is_video_file(secure_name):
             # Video (e.g. OBS .mkv): one pass. Seek before -i so long recordings aren't decoded from the start,
             # shrink to a GIF-sized width and frame rate, then reverse on the small frames for ping-pong.
-            graph = f"{crop_filter(crop) + ',' if crop else ''}fps={gif_fps},scale='min({gif_width},iw)':-2:flags=lanczos"
+            graph = f"{head}fps={gif_fps},scale='min({gif_width},iw)':-2:flags=lanczos"
             if ping_pong:
                 graph += ",split[fw][bw];[bw]reverse[rv];[fw][rv]concat=n=2:v=1:a=0"
             graph += ",split[s0][s1];[s0]palettegen=stats_mode=diff[p];[s1][p]paletteuse=dither=bayer:bayer_scale=5"
@@ -535,7 +564,7 @@ def edit_trim_gif_blob():
                 '-i', in_path,
                 '-ss', str(start_time),
                 '-t', str(duration),
-                '-vf', f"{crop_filter(crop) + ',' if crop else ''}split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse",
+                '-vf', f"{head}split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse",
                 temp
             ]
             
@@ -582,12 +611,13 @@ def edit_trim_gif_blob():
                 '-i', in_path,
                 '-ss', str(start_time),
                 '-t', str(duration),
-                '-vf', f"{crop_filter(crop) + ',' if crop else ''}split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse",
+                '-vf', f"{head}split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse",
                 out_path
             ]
             print(f"🔧 Regular trim: {' '.join(cmd)}")
             ok = run_ffmpeg_command(cmd)
 
+        remove_quietly(caption)
         try:
             if not kept:
                 os.remove(in_path)
@@ -764,8 +794,13 @@ def convert_gif():
 
         file_id = str(uuid.uuid4())
         output_path = os.path.join(UPLOAD_FOLDER, f"{file_id}_output.webm")
+        try:
+            caption = saved_caption(file_id)
+        except ValueError:
+            return jsonify({'error': 'Invalid caption'}), 400
         received = received_source(file_id)
         if not isinstance(received, tuple) or len(received) != 3:
+            remove_quietly(caption)
             return received
         input_path, secure_name, kept = received
 
@@ -780,8 +815,10 @@ def convert_gif():
             mode=mode,
             max_size_kb=max_size_kb if mode != 'preview' else 2048,
             progress=progress_reporter(request.form.get('job')),
+            caption=caption,
             **selection
         )
+        remove_quietly(caption)
 
         if ok and os.path.exists(output_path):
             output_size = os.path.getsize(output_path)
