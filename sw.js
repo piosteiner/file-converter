@@ -1,6 +1,6 @@
 // Offline support: network first, cached copy when offline.
 // Bump VERSION when the precache list changes.
-const VERSION = 'v5';
+const VERSION = 'v6';
 const CACHE = `converter-${VERSION}`;
 const PRECACHE = [
   '/',
@@ -12,6 +12,7 @@ const PRECACHE = [
   '/assets/fonts/ibm-plex-mono-400.woff2',
   '/assets/fonts/ibm-plex-mono-500.woff2',
   '/assets/fonts/ibm-plex-mono-600.woff2',
+  '/assets/js/theme-init.js',
   '/assets/js/core.js',
   '/assets/js/jpeg.js',
   '/assets/js/resize.js',

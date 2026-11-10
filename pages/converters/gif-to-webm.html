@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://api.piogino.ch data: blob:; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>GIF / Video to WebM · converter.piogino</title>
   <meta name="description" content="Trim animated GIFs or screen recordings (MKV, MP4, MOV) and convert them to VP9 WebM for Telegram video stickers and emoji, or to GIF.">
@@ -12,7 +13,7 @@
   <meta name="theme-color" content="#f3f0e8" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#151412" media="(prefers-color-scheme: dark)">
   <link rel="stylesheet" href="/assets/site.css">
-  <script>try{var t=localStorage.getItem('preferred-theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
+  <script src="/assets/js/theme-init.js"></script>
 </head>
 <body>
   <header class="site-head">
