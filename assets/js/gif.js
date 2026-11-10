@@ -153,10 +153,11 @@
     return lines;
   }
 
-  // Draws the caption over an area of width × height, its origin at the context's (0, 0).
+  // Draws the caption over an area of width × height, its origin at the context's (0, 0). Returns where the text
+  // block went and how far it can move ({ left, top, w, h, roomX, roomY }), or null without a caption.
   function drawCaption(ctx, width, height) {
     const text = captionText();
-    if (!text) return;
+    if (!text) return null;
     const short = Math.min(width, height);
     const margin = short * 0.04;
     const maxWidth = width - 2 * margin;
@@ -188,6 +189,7 @@
       ctx.fillText(l, cx, y);
     });
     ctx.restore();
+    return { left: cx - blockWidth / 2, top, w: blockWidth, h: blockHeight, roomX: maxWidth - blockWidth, roomY: height - 2 * margin - blockHeight };
   }
 
   // The caption over the editor's preview: a canvas inside the crop box, so it follows the box.
@@ -201,9 +203,56 @@
     if (!w || !h) return;
     captionCanvas.width = Math.round(w * dpr);
     captionCanvas.height = Math.round(h * dpr);
-    drawCaption(captionCanvas.getContext('2d'), captionCanvas.width, captionCanvas.height);
+    const g = drawCaption(captionCanvas.getContext('2d'), captionCanvas.width, captionCanvas.height);
+    const k = w / captionCanvas.width;
+    stageCaption = g && { left: g.left * k, top: g.top * k, w: g.w * k, h: g.h * k, roomX: g.roomX * k, roomY: g.roomY * k };
   }
   new ResizeObserver(drawStageCaption).observe(ui.cropBox);
+
+  // Dragging the text on the preview moves it: it sets the Horizontal / Vertical sliders, so the file follows.
+  // Listens in the capture phase so a press on the text doesn't reach the cropper; crop handles still win.
+  let stageCaption = null; // the text block in CSS px of the crop box, from the last drawStageCaption
+  const stage = $('#cropWrap').parentElement;
+  function onCaption(e) {
+    if (!stageCaption || ui.cropBox.hidden || ui.captionX.disabled || e.target.dataset?.handle) return false;
+    const r = ui.cropBox.getBoundingClientRect();
+    const x = e.clientX - r.left;
+    const y = e.clientY - r.top;
+    const pad = 6;
+    const g = stageCaption;
+    return x >= g.left - pad && x <= g.left + g.w + pad && y >= g.top - pad && y <= g.top + g.h + pad;
+  }
+  stage.addEventListener('pointerdown', (e) => {
+    if (e.button > 0 || !onCaption(e)) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const g = { ...stageCaption };
+    const x0 = e.clientX; const y0 = e.clientY;
+    const X0 = Number(ui.captionX.value); const Y0 = Number(ui.captionY.value);
+    const place = (v0, d, room) => {
+      if (room <= 0) return v0;
+      const v = Math.max(0, Math.min(100, v0 + (d / room) * 100));
+      return Math.abs(v - 50) < 2 ? 50 : Math.round(v); // snaps to the middle
+    };
+    stage.setPointerCapture(e.pointerId);
+    stage.classList.add('caption-dragging');
+    const move = (ev) => {
+      ui.captionX.value = place(X0, ev.clientX - x0, g.roomX);
+      ui.captionY.value = place(Y0, ev.clientY - y0, g.roomY);
+      captionChanged();
+    };
+    const up = () => {
+      stage.classList.remove('caption-dragging');
+      stage.removeEventListener('pointermove', move);
+      stage.removeEventListener('pointerup', up);
+      stage.removeEventListener('pointercancel', up);
+    };
+    stage.addEventListener('pointermove', move);
+    stage.addEventListener('pointerup', up);
+    stage.addEventListener('pointercancel', up);
+  }, true);
+  stage.addEventListener('pointermove', (e) => { if (!e.buttons) stage.classList.toggle('over-caption', onCaption(e)); });
+  stage.addEventListener('pointerleave', () => stage.classList.remove('over-caption'));
 
   // The PNG to send, or null without a caption.
   async function captionPng() {

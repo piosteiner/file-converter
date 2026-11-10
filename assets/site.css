@@ -556,6 +556,8 @@ input[type="color"] {
 .caption-field { flex: 1 1 240px; }
 .field.compact.caption-field input { width: 100%; }
 .caption-canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.editor-stage.over-caption, .editor-stage.over-caption * { cursor: grab; }
+.editor-stage.caption-dragging, .editor-stage.caption-dragging * { cursor: grabbing; }
 .hint.keys { margin-top: 6px; line-height: 1.9; }
 kbd {
   font: 500 11px/1 var(--mono);
